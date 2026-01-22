@@ -90,3 +90,148 @@ class SearchResult(BaseModel):
     total_results: int | None = None
     sources_queried: list[str] = Field(default_factory=list)
     errors: dict[str, str] = Field(default_factory=dict)
+
+
+# ============================================================================
+# Structured Content Models (for PDF extraction)
+# ============================================================================
+
+
+class ContentBlock(BaseModel):
+    """A single content block extracted from a document."""
+
+    type: str  # "text", "title", "table", "image", "equation", "list"
+    content: str  # Text content or reference path for images
+    text_level: int = 0  # 0=body, 1=h1, 2=h2, etc.
+    page_idx: int | None = None
+    bbox: list[float] | None = None  # [x0, y0, x1, y1] normalized 0-1000
+    raw_data: dict[str, Any] = Field(default_factory=dict)
+
+
+class Section(BaseModel):
+    """A document section with title and content blocks."""
+
+    title: str
+    level: int = 1  # Heading level (1=h1, 2=h2, etc.)
+    blocks: list[ContentBlock] = Field(default_factory=list)
+    subsections: list[Section] = Field(default_factory=list)
+
+    def get_text(self) -> str:
+        """Get all text content in this section (excluding subsections)."""
+        return "\n\n".join(block.content for block in self.blocks if block.type == "text")
+
+    def get_all_text(self) -> str:
+        """Get all text content including subsections."""
+        parts = [self.get_text()]
+        for sub in self.subsections:
+            parts.append(sub.get_all_text())
+        return "\n\n".join(p for p in parts if p)
+
+
+class DocumentStructure(BaseModel):
+    """Base structured document with hierarchical sections."""
+
+    title: str | None = None
+    sections: list[Section] = Field(default_factory=list)
+    all_blocks: list[ContentBlock] = Field(default_factory=list)
+    figures: list[str] = Field(default_factory=list)
+    tables: list[str] = Field(default_factory=list)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    source_path: str | None = None
+    document_type: str = "generic"  # "paper" or "book"
+
+    def get_section(self, title_pattern: str) -> Section | None:
+        """Find a section by title pattern (case-insensitive partial match)."""
+        pattern = title_pattern.lower()
+        for section in self.sections:
+            if pattern in section.title.lower():
+                return section
+        return None
+
+    def get_all_sections_flat(self) -> list[Section]:
+        """Get all sections flattened (including nested subsections)."""
+        result = []
+
+        def _collect(sections: list[Section]) -> None:
+            for s in sections:
+                result.append(s)
+                _collect(s.subsections)
+
+        _collect(self.sections)
+        return result
+
+
+class PaperStructure(DocumentStructure):
+    """Structured academic paper with standard sections."""
+
+    document_type: str = "paper"
+
+    # Standard paper sections (populated if detected)
+    abstract: str | None = None
+    introduction: str | None = None
+    methods: str | None = None  # Also matches "methodology", "materials and methods"
+    results: str | None = None
+    discussion: str | None = None
+    conclusion: str | None = None
+    references_text: str | None = None  # Raw references section text
+    acknowledgments: str | None = None
+
+    # Detected authors and affiliations from content
+    detected_authors: list[str] = Field(default_factory=list)
+    detected_affiliations: list[str] = Field(default_factory=list)
+
+
+class ChapterNode(BaseModel):
+    """A chapter/section node in a book structure."""
+
+    title: str
+    level: int  # 1=chapter, 2=section, 3=subsection, etc.
+    page_start: int | None = None
+    content: str = ""  # Direct text content
+    blocks: list[ContentBlock] = Field(default_factory=list)
+    children: list[ChapterNode] = Field(default_factory=list)
+
+    def get_all_text(self) -> str:
+        """Get all text content including children."""
+        parts = [self.content]
+        parts.extend(b.content for b in self.blocks if b.type == "text")
+        for child in self.children:
+            parts.append(child.get_all_text())
+        return "\n\n".join(p for p in parts if p)
+
+
+class BookStructure(DocumentStructure):
+    """Structured textbook with chapter hierarchy."""
+
+    document_type: str = "book"
+
+    # Book-specific fields
+    chapters: list[ChapterNode] = Field(default_factory=list)
+    toc: list[dict[str, Any]] = Field(default_factory=list)  # Table of contents
+
+    def get_chapter(self, title_pattern: str) -> ChapterNode | None:
+        """Find a chapter by title pattern."""
+        pattern = title_pattern.lower()
+
+        def _find(nodes: list[ChapterNode]) -> ChapterNode | None:
+            for node in nodes:
+                if pattern in node.title.lower():
+                    return node
+                found = _find(node.children)
+                if found:
+                    return found
+            return None
+
+        return _find(self.chapters)
+
+    def get_all_chapters_flat(self) -> list[ChapterNode]:
+        """Get all chapters/sections flattened."""
+        result = []
+
+        def _collect(nodes: list[ChapterNode]) -> None:
+            for n in nodes:
+                result.append(n)
+                _collect(n.children)
+
+        _collect(self.chapters)
+        return result

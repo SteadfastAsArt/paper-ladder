@@ -5,12 +5,12 @@ from __future__ import annotations
 import asyncio
 import tempfile
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import httpx
 
 from paper_ladder.extractors.base import BaseExtractor
-from paper_ladder.models import ExtractedContent
+from paper_ladder.models import BookStructure, ExtractedContent, PaperStructure
 from paper_ladder.utils import is_valid_url
 
 
@@ -83,6 +83,45 @@ class PDFExtractor(BaseExtractor):
             source_url=source_str if is_valid_url(source_str) else None,
             source_type=source_type,
         )
+
+    async def extract_structured(
+        self,
+        source: str | Path,
+        document_type: Literal["paper", "book", "auto"] = "auto",
+        output_dir: str | Path | None = None,
+    ) -> PaperStructure | BookStructure:
+        """Extract structured content from a PDF with section parsing.
+
+        This method provides semantically structured output, automatically
+        identifying sections like abstract, introduction, methods, etc. for
+        papers, or building a chapter hierarchy for books.
+
+        Args:
+            source: URL or file path to the PDF.
+            document_type: Type of document:
+                - "paper": Academic paper with standard sections
+                - "book": Textbook with chapter hierarchy
+                - "auto": Auto-detect based on content
+            output_dir: Directory to save extracted figures.
+
+        Returns:
+            PaperStructure for papers, BookStructure for books.
+
+        Example:
+            >>> async with PDFExtractor() as extractor:
+            ...     paper = await extractor.extract_structured("paper.pdf", "paper")
+            ...     print(paper.abstract)
+            ...     print(paper.introduction)
+            ...
+            >>> async with PDFExtractor() as extractor:
+            ...     book = await extractor.extract_structured("textbook.pdf", "book")
+            ...     for chapter in book.chapters:
+            ...         print(f"{chapter.title}: {len(chapter.children)} sections")
+        """
+        from paper_ladder.extractors.structured_extractor import StructuredExtractor
+
+        extractor = StructuredExtractor(config=self.config)
+        return await extractor.extract(source, document_type, output_dir)
 
     async def _download_pdf(self, url: str) -> Path:
         """Download a PDF from a URL to a temporary file.

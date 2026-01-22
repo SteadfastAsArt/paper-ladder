@@ -29,10 +29,10 @@ uv run paper-ladder --help
 ## Project Structure
 
 - `src/paper_ladder/` - Main package
-  - `models.py` - Data models (Paper, Author, Institution, ExtractedContent, SearchResult)
+  - `models.py` - Data models (Paper, Author, Institution, ExtractedContent, SearchResult, PaperStructure, BookStructure)
   - `config.py` - Configuration loader
   - `clients/` - API client adapters
-  - `extractors/` - Content extractors (PDF, HTML)
+  - `extractors/` - Content extractors (PDF, HTML, Structured)
   - `aggregator.py` - Multi-source aggregation
   - `cli.py` - CLI entry point
 - `tests/` - Test suite
@@ -66,6 +66,41 @@ Extracted paper content:
 - `metadata` - Extracted metadata
 - `figures`, `tables` - Lists of extracted elements
 - `source_url`, `source_type` ("pdf" or "html")
+
+### ContentBlock
+A single content block from PDF extraction:
+- `type` - Block type ("text", "title", "table", "image", "equation", "list")
+- `content` - Text content or image path
+- `text_level` - Heading level (0=body, 1=h1, 2=h2, etc.)
+- `page_idx`, `bbox` - Position information
+
+### Section
+A document section with hierarchy:
+- `title`, `level` - Section heading info
+- `blocks` - List of ContentBlock
+- `subsections` - Nested Section list
+- `get_text()` - Get section text content
+- `get_all_text()` - Get text including subsections
+
+### PaperStructure
+Structured academic paper (extends DocumentStructure):
+- Standard section fields: `abstract`, `introduction`, `methods`, `results`, `discussion`, `conclusion`, `references_text`, `acknowledgments`
+- `sections` - All sections as Section list
+- `all_blocks` - Raw ContentBlock list
+- `get_section(pattern)` - Find section by title pattern
+
+### BookStructure
+Structured textbook with chapter hierarchy:
+- `chapters` - List of ChapterNode (tree structure)
+- `get_chapter(pattern)` - Find chapter by title
+- `get_all_chapters_flat()` - Flatten chapter tree
+
+### ChapterNode
+A chapter/section in book structure:
+- `title`, `level`, `page_start`
+- `content`, `blocks` - Chapter content
+- `children` - Nested ChapterNode list
+- `get_all_text()` - Get all text including children
 
 ---
 
@@ -231,6 +266,66 @@ default_sources:
 - **Usage**: `from mineru.cli.common import do_parse`
 
 The PDF extractor uses MinerU's `do_parse` function with `backend="pipeline"`.
+
+### Basic Extraction (Markdown)
+
+```python
+from paper_ladder.extractors import PDFExtractor
+
+async def extract():
+    extractor = PDFExtractor()
+    content = await extractor.extract("paper.pdf")
+    print(content.markdown)
+```
+
+### Structured Extraction (JSON-based)
+
+For LLM processing, use `StructuredExtractor` to get semantically parsed content:
+
+```python
+from paper_ladder.extractors import StructuredExtractor
+
+async def extract_paper():
+    extractor = StructuredExtractor()
+    paper = await extractor.extract("paper.pdf", document_type="paper")
+
+    # Direct access to standard sections
+    print(paper.abstract)
+    print(paper.introduction)
+    print(paper.methods)
+    print(paper.results)
+    print(paper.discussion)
+    print(paper.conclusion)
+
+    # Or iterate all sections
+    for section in paper.sections:
+        print(f"{section.title}: {section.get_text()[:100]}...")
+
+async def extract_book():
+    extractor = StructuredExtractor()
+    book = await extractor.extract("textbook.pdf", document_type="book")
+
+    # Hierarchical chapter access
+    for chapter in book.chapters:
+        print(f"# {chapter.title}")
+        for section in chapter.children:
+            print(f"  ## {section.title}")
+
+    # Search by title
+    ch = book.get_chapter("linear algebra")
+    if ch:
+        print(ch.get_all_text())
+```
+
+**Document Types**:
+- `"paper"` - Academic papers with standard sections (Abstract, Introduction, Methods, etc.)
+- `"book"` - Textbooks with chapter hierarchy
+- `"auto"` - Auto-detect based on content patterns
+
+**Output Formats**:
+- `middle.json` - Full structured JSON with layout info
+- `content_list.json` - Simplified flat content list
+- Both are parsed into `PaperStructure` or `BookStructure` models
 
 ---
 

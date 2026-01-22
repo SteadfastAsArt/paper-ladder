@@ -3,11 +3,13 @@
 from paper_ladder.extractors.base import BaseExtractor
 from paper_ladder.extractors.html_extractor import HTMLExtractor
 from paper_ladder.extractors.pdf_extractor import PDFExtractor
+from paper_ladder.extractors.structured_extractor import StructuredExtractor
 
 __all__ = [
     "BaseExtractor",
     "PDFExtractor",
     "HTMLExtractor",
+    "StructuredExtractor",
     "get_extractor",
     "EXTRACTORS",
 ]
