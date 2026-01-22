@@ -32,9 +32,9 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/andriansyahnc/paper-ladder"
-Repository = "https://github.com/andriansyahnc/paper-ladder"
-Issues = "https://github.com/andriansyahnc/paper-ladder/issues"
+Homepage = "https://github.com/SteadfastAsArt/paper-ladder"
+Repository = "https://github.com/SteadfastAsArt/paper-ladder"
+Issues = "https://github.com/SteadfastAsArt/paper-ladder/issues"
 
 [project.optional-dependencies]
 dev = [
