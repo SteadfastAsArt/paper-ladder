@@ -1,0 +1,31 @@
+# Paper-Ladder Configuration
+# Copy this file to config.yaml and fill in your API keys
+
+# API Keys
+elsevier_api_key: ""  # Required for Scopus/ScienceDirect access
+serpapi_api_key: ""   # Required for Google Scholar (via SerpAPI)
+semantic_scholar_api_key: ""  # Optional, for higher rate limits (1 req/sec vs 100/5min)
+
+# Proxy settings (optional)
+# proxy:
+#   http: "http://127.0.0.1:7890"
+#   https: "http://127.0.0.1:7890"
+
+# Default sources for search (in order of preference)
+default_sources:
+  - openalex
+  - semantic_scholar
+
+# Request settings
+request_timeout: 30  # seconds
+max_retries: 3
+
+# Rate limiting (requests per second)
+rate_limits:
+  openalex: 10
+  semantic_scholar: 10
+  elsevier: 5
+  google_scholar: 1
+
+# Output settings
+output_dir: "./output"

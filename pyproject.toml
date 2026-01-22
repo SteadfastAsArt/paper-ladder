@@ -1,0 +1,65 @@
+[project]
+name = "paper-ladder"
+version = "0.1.0"
+description = "Academic paper search and content extraction library"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.10"
+authors = [
+    { name = "Andrian Lee" }
+]
+keywords = ["academic", "papers", "search", "openalex", "semantic-scholar", "pdf", "extraction"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering",
+]
+dependencies = [
+    "httpx>=0.27",
+    "pydantic>=2.0",
+    "google-search-results>=2.4",
+    "mineru>=2.7",
+    "beautifulsoup4>=4.12",
+    "lxml>=5.0",
+    "typer>=0.12",
+    "pyyaml>=6.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/andriansyahnc/paper-ladder"
+Repository = "https://github.com/andriansyahnc/paper-ladder"
+Issues = "https://github.com/andriansyahnc/paper-ladder/issues"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "ruff>=0.4",
+]
+
+[project.scripts]
+paper-ladder = "paper_ladder.cli:app"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/paper_ladder"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
