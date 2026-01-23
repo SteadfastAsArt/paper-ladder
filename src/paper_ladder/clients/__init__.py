@@ -1,6 +1,7 @@
 """API client adapters for Paper-Ladder."""
 
 from paper_ladder.clients.base import BaseClient
+from paper_ladder.clients.crossref import CrossrefClient
 from paper_ladder.clients.elsevier import ElsevierClient
 from paper_ladder.clients.google_scholar import GoogleScholarClient
 from paper_ladder.clients.openalex import OpenAlexClient
@@ -12,6 +13,7 @@ __all__ = [
     "SemanticScholarClient",
     "ElsevierClient",
     "GoogleScholarClient",
+    "CrossrefClient",
     "get_client",
     "CLIENTS",
 ]
@@ -22,6 +24,7 @@ CLIENTS: dict[str, type[BaseClient]] = {
     "semantic_scholar": SemanticScholarClient,
     "elsevier": ElsevierClient,
     "google_scholar": GoogleScholarClient,
+    "crossref": CrossrefClient,
 }
 
 

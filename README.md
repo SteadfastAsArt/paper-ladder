@@ -17,12 +17,26 @@ A Python library for searching academic paper metadata from multiple APIs and ex
 
 ## Supported Sources
 
-| Source | API Key | Rate Limit | Papers | Authors | Institutions | Citations |
-|--------|---------|------------|--------|---------|--------------|-----------|
-| **OpenAlex** | Not required | 100k/day | Yes | Yes | Yes | Yes |
-| **Semantic Scholar** | Optional | 100/5min (1/sec with key) | Yes | Yes | - | Yes |
-| **Elsevier (Scopus)** | Required | Varies | Yes | Paid | Paid | Yes |
-| **Google Scholar** | Required (SerpAPI) | ~$0.015/call | Yes | Paid | - | Yes |
+| Source | API Key | Rate Limit | Papers | Authors | Institutions | Citations | Unique Features |
+|--------|---------|------------|--------|---------|--------------|-----------|-----------------|
+| **OpenAlex** | Not required | 100k/day | ✓ | ✓ | ✓ | ✓ | Free, comprehensive |
+| **Semantic Scholar** | Optional | 100/5min | ✓ | ✓ | - | ✓ | Recommendations, arXiv |
+| **Crossref** | Not required | ~50/sec | ✓ | - | - | - | Journals, Funders, 150M+ DOIs |
+| **Elsevier (Scopus)** | Required | ~2/sec | ✓ | ✓ | ✓ | ✓ | Full-text access |
+| **Google Scholar** | Required (SerpAPI) | $0.015/call | ✓ | ✓ | - | ✓ | Broadest coverage |
+
+### Comparison
+
+| Metric | OpenAlex | Semantic Scholar | Crossref | Elsevier | Google Scholar |
+|--------|----------|------------------|----------|----------|----------------|
+| **Max per request** | 200 | 100 | 1,000 | 25 | 20 |
+| **Max offset** | 10,000 | 10,000 | cursor | 5,000 | ~100 |
+| **Free** | ✓ | ✓ | ✓ | ✗ | ✗ |
+
+**Citation counts for the same paper** (Deep Learning, LeCun 2015):
+- Semantic Scholar: ~162,000 (includes preprints)
+- OpenAlex: ~77,000
+- Crossref: ~68,500
 
 ## Installation
 
@@ -59,6 +73,16 @@ semantic_scholar_api_key: "your-key"
 # Default sources (free, no API key needed)
 default_sources:
   - openalex
+  - crossref
+  - semantic_scholar
+
+# Rate limits (requests per second)
+rate_limits:
+  openalex: 10
+  semantic_scholar: 10  # Use 0.3 without API key
+  crossref: 50
+  elsevier: 5
+  google_scholar: 1
 ```
 
 ### CLI Usage
@@ -261,6 +285,54 @@ async with GoogleScholarClient() as client:
     author = await client.get_author("dkZ6M2sAAAAJ")
     papers = await client.get_author_papers(author_id, sort_by="cited")
 ```
+
+### Crossref (Free, No API Key)
+
+DOI registration agency with 150M+ metadata records. Unique journal and funder search capabilities.
+
+```python
+from paper_ladder.clients import CrossrefClient
+
+async with CrossrefClient() as client:
+    # Paper search with filters
+    papers = await client.search(
+        "CRISPR gene editing",
+        limit=100,
+        year=2024,
+        has_abstract=True,
+        type="journal-article",
+        sort="is-referenced-by-count"
+    )
+
+    # Get by DOI
+    paper = await client.get_paper("10.1038/nature14539")
+
+    # Get references (not citations - Crossref doesn't support citation lookup)
+    refs = await client.get_paper_references(doi, limit=50)
+
+    # Journal metadata (unique to Crossref)
+    journal = await client.get_journal("0028-0836")  # Nature ISSN
+    print(f"{journal['title']}: {journal['counts']['total-dois']} articles")
+
+    # Search within a journal
+    papers = await client.get_journal_works("0028-0836", query="AI", limit=20)
+
+    # Funder metadata (unique to Crossref)
+    funder = await client.get_funder("501100001809")  # NSFC
+    print(f"{funder['name']}: {funder['work-count']} funded papers")
+
+    # Search funded papers
+    papers = await client.get_funder_works("501100001809", query="deep learning")
+```
+
+**Common Funder IDs**:
+| Funder | ID | Papers |
+|--------|-----|--------|
+| NSFC (China) | 501100001809 | 3.1M |
+| NIH (US) | 100000002 | 443K |
+| NSF (US) | 100000001 | 428K |
+| JSPS (Japan) | 501100001691 | 246K |
+| DOE (US) | 100000015 | 139K |
 
 ## Data Models
 

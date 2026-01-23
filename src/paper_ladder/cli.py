@@ -94,6 +94,7 @@ def search_cmd(
         typer.Option("--config", "-c", help="Path to config file")
     ] = None,
     output_json: Annotated[bool, typer.Option("--json", help="Output as JSON")] = False,
+    deduplicate: Annotated[bool, typer.Option("--deduplicate/--no-deduplicate", help="Deduplicate results")] = True,
     verbose: Annotated[bool, typer.Option("--verbose", "-v", help="Show more details")] = False,
 ) -> None:
     """Search for academic papers."""
@@ -107,7 +108,7 @@ def search_cmd(
         source_list = [s.strip() for s in sources.split(",")]
 
     async def _search() -> None:
-        papers = await search(query, sources=source_list, limit=limit)
+        papers = await search(query, sources=source_list, limit=limit, deduplicate=deduplicate)
 
         if output_json:
             data = [p.model_dump() for p in papers]

@@ -81,15 +81,28 @@ class Aggregator:
         # Run searches concurrently
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
-        # Collect papers and errors
-        all_papers: list[Paper] = []
+        # Collect papers by source and errors
+        source_papers: list[list[Paper]] = []
         errors: dict[str, str] = {}
 
         for source, result in zip(sources, results):
             if isinstance(result, Exception):
                 errors[source] = str(result)
+                source_papers.append([])  # Empty list for failed source
             elif isinstance(result, list):
-                all_papers.extend(result)
+                source_papers.append(result)
+            else:
+                source_papers.append([])
+
+        # Interleave results from all sources (round-robin)
+        # This ensures fair ranking across sources
+        all_papers: list[Paper] = []
+        max_len = max((len(papers) for papers in source_papers), default=0)
+
+        for i in range(max_len):
+            for papers in source_papers:
+                if i < len(papers):
+                    all_papers.append(papers[i])
 
         # Deduplicate if requested
         if deduplicate:

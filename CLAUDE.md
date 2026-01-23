@@ -239,6 +239,45 @@ A chapter/section in book structure:
 - `get_author(author_id)` - Get author profile by Google Scholar ID
 - `get_author_papers(author_id, limit, offset, sort_by)` - Get papers by author (sort by "cited" or "pubdate")
 
+### 5. Crossref
+
+- **Documentation**: https://www.crossref.org/documentation/retrieve-metadata/rest-api/
+- **API Tips**: https://www.crossref.org/documentation/retrieve-metadata/rest-api/tips-for-using-the-crossref-rest-api/
+- **Swagger UI**: https://api.crossref.org/swagger-ui/index.html
+- **Works Endpoint**: https://api.crossref.org/works
+- **Journals Endpoint**: https://api.crossref.org/journals
+- **Funders Endpoint**: https://api.crossref.org/funders
+
+**Key Features**:
+- No API key required
+- Polite pool: Add `mailto` parameter for better rate limits and stability
+- 150+ million metadata records
+- DOI registration agency
+- Supports filtering, sorting, cursor-based pagination
+- Includes funding information, licenses, ORCID/ROR identifiers
+
+**Base URL**: `https://api.crossref.org`
+
+**Polite Pool**: Add `mailto=your@email.com` parameter to all requests
+
+**Filters Available**:
+- `from-pub-date`, `until-pub-date` - Publication date range
+- `type` - Work type (journal-article, book-chapter, etc.)
+- `has-abstract`, `has-references`, `has-orcid` - Content filters
+- `issn` - Filter by journal ISSN
+- `funder` - Filter by funder ID
+
+**Implemented Methods**:
+- `search(query, limit, offset, **filters)` - Search papers (year, from_year, until_year, type, has_abstract, has_references, has_orcid, issn, funder, open_access, sort, order)
+- `get_paper(identifier)` - Get paper by DOI
+- `get_paper_references(doi, limit, offset)` - Get referenced papers from a paper's reference list
+- `get_journal(issn)` - Get journal metadata by ISSN
+- `get_journal_works(issn, query, limit, offset)` - Get works from a journal
+- `get_funder(funder_id)` - Get funder metadata
+- `get_funder_works(funder_id, query, limit, offset)` - Get works funded by a funder
+
+**Note**: Crossref does not support citation lookup (finding papers that cite a given DOI). Use OpenAlex or Semantic Scholar for citation data.
+
 ---
 
 ## Configuration
@@ -255,6 +294,15 @@ semantic_scholar_api_key: "your-key"   # Optional, for higher rate limits
 default_sources:
   - openalex
   - semantic_scholar
+  - crossref
+
+# Rate limits (requests per second)
+rate_limits:
+  openalex: 10
+  semantic_scholar: 10      # Set to 0.3 if no API key
+  crossref: 50
+  elsevier: 5
+  google_scholar: 1
 ```
 
 ---
@@ -358,6 +406,255 @@ async def test():
             print(f"{p.title} ({p.year})")
 
 asyncio.run(test())
+```
+
+---
+
+## API Clients Comparison
+
+### Feature Comparison
+
+| Feature                 | OpenAlex | Semantic Scholar | Crossref | Elsevier | Google Scholar |
+|-------------------------|:--------:|:----------------:|:--------:|:--------:|:--------------:|
+| search()                |    ✓     |        ✓         |    ✓     |    ✓     |       ✓        |
+| get_paper()             |    ✓     |        ✓         |    ✓     |    ✓     |       ✓        |
+| get_paper_citations()   |    ✓     |        ✓         |    ✗     |    ✓     |       ✓        |
+| get_paper_references()  |    ✓     |        ✓         |    ✓     |    ✗     |       ✗        |
+| search_authors()        |    ✓     |        ✓         |    ✗     |    ✓     |       ✓        |
+| get_author()            |    ✓     |        ✓         |    ✗     |    ✓     |       ✓        |
+| get_author_papers()     |    ✓     |        ✓         |    ✗     |    ✓     |       ✓        |
+| search_institutions()   |    ✓     |        ✗         |    ✗     |    ✓     |       ✗        |
+| get_institution()       |    ✓     |        ✗         |    ✗     |    ✓     |       ✗        |
+| get_journal()           |    ✗     |        ✗         |    ✓     |    ✗     |       ✗        |
+| get_journal_works()     |    ✗     |        ✗         |    ✓     |    ✗     |       ✗        |
+| get_funder()            |    ✗     |        ✗         |    ✓     |    ✗     |       ✗        |
+| get_funder_works()      |    ✗     |        ✗         |    ✓     |    ✗     |       ✗        |
+| get_recommendations()   |    ✗     |        ✓         |    ✗     |    ✗     |       ✗        |
+| batch operations        |    ✗     |        ✓         |    ✗     |    ✗     |       ✗        |
+| **Requires API Key**    |    ✗     |      Optional    |    ✗     |    ✓     |       ✓        |
+| **Free**                |    ✓     |        ✓         |    ✓     |    ✗     |       ✗        |
+
+### Rate Limits
+
+| Engine           | Without Key           | With Key              | Default Setting |
+|------------------|-----------------------|-----------------------|-----------------|
+| OpenAlex         | 100,000/day (~10/s)   | N/A (no key needed)   | 10 req/s        |
+| Semantic Scholar | 100/5min (0.33/s)     | 1 req/s               | 10 req/s        |
+| Crossref         | No hard limit         | N/A (no key needed)   | 50 req/s        |
+| Elsevier/Scopus  | Key required          | 20,000/week (~2/s)    | 5 req/s         |
+| Google Scholar   | Key required          | ~$0.015/search        | 1 req/s         |
+
+### Single Request Return Limits
+
+| Engine           | Method                    | Code Limit       | API Max  |
+|------------------|---------------------------|------------------|----------|
+| OpenAlex         | search()                  | min(limit, 200)  | 200      |
+| Semantic Scholar | search()                  | min(limit, 100)  | 100      |
+| Semantic Scholar | get_paper_citations()     | min(limit, 1000) | 1000     |
+| Semantic Scholar | get_papers_batch()        | Fixed 500        | 500      |
+| Crossref         | search()                  | min(limit, 1000) | 1000     |
+| Elsevier/Scopus  | search()                  | min(limit, 25)   | 200*     |
+| Google Scholar   | search()                  | No hard limit    | 20       |
+
+*Elsevier API supports up to 200, but code limits to 25 for safety.
+
+### Citation Count Comparison
+
+Same paper "Deep Learning" (LeCun et al. 2015, DOI: 10.1038/nature14539):
+
+| Source           | Citation Count | Notes                          |
+|------------------|----------------|--------------------------------|
+| Semantic Scholar | ~162,000       | Includes preprint citations    |
+| OpenAlex         | ~77,000        | Peer-reviewed only             |
+| Crossref         | ~68,500        | DOI-registered citations only  |
+
+### Platform Strengths
+
+| Platform         | Best For                                              |
+|------------------|-------------------------------------------------------|
+| OpenAlex         | Free, comprehensive, institution/author data          |
+| Semantic Scholar | AI/CS papers, recommendations, arXiv support          |
+| Crossref         | DOI authority, journal/funder metadata, 150M+ records |
+| Elsevier         | Commercial database, full-text access (subscription)  |
+| Google Scholar   | Broadest coverage (books, patents, conferences)       |
+
+---
+
+## Crossref Unique Features
+
+### Journal Metadata
+
+Query journal information by ISSN:
+
+```python
+from paper_ladder.clients import CrossrefClient
+
+async with CrossrefClient() as client:
+    journal = await client.get_journal("0028-0836")  # Nature
+    print(journal["title"])                # Nature
+    print(journal["publisher"])            # Springer Science and Business Media LLC
+    print(journal["counts"]["total-dois"]) # 444,301
+```
+
+**Sample Journal Data**:
+
+| Journal              | ISSN       | Publisher                  | Total Articles | Current Year |
+|----------------------|------------|----------------------------|----------------|--------------|
+| Nature               | 0028-0836  | Springer                   | 444,301        | 9,179        |
+| Science              | 0036-8075  | AAAS                       | 382,631        | 4,221        |
+| Cell                 | 0092-8674  | Elsevier                   | 26,358         | 1,119        |
+| The Lancet           | 0140-6736  | Elsevier                   | 473,508        | 3,351        |
+| Nature Communications| 2041-1723  | Springer                   | 83,332         | 24,256       |
+
+### Funder Metadata
+
+Query funding agency information:
+
+```python
+async with CrossrefClient() as client:
+    funder = await client.get_funder("501100001809")  # NSFC
+    print(funder["name"])       # National Natural Science Foundation of China
+    print(funder["location"])   # China
+    print(funder["work-count"]) # 3,104,226
+
+    # Search papers funded by this agency
+    papers = await client.get_funder_works("501100001809", query="deep learning", limit=10)
+```
+
+**Common Funder IDs**:
+
+| Funder                                      | ID           | Location      | Funded Papers |
+|---------------------------------------------|--------------|---------------|---------------|
+| National Natural Science Foundation (NSFC)  | 501100001809 | China         | 3,104,226     |
+| National Institutes of Health (NIH)         | 100000002    | United States | 443,055       |
+| National Science Foundation (NSF)           | 100000001    | United States | 427,837       |
+| Japan Society for Promotion of Science      | 501100001691 | Japan         | 245,879       |
+| U.S. Department of Energy (DOE)             | 100000015    | United States | 139,325       |
+| EPSRC                                       | 501100000266 | UK            | 112,092       |
+| Wellcome Trust                              | 100004440    | UK            | 22,975        |
+| DARPA                                       | 100000185    | United States | 18,667        |
+
+---
+
+## Usage Examples
+
+### Basic Search
+
+```python
+import asyncio
+from paper_ladder.clients import OpenAlexClient, CrossrefClient
+
+async def search_example():
+    # OpenAlex search with filters
+    async with OpenAlexClient() as client:
+        papers = await client.search(
+            "transformer attention",
+            limit=10,
+            year=2023,
+            open_access=True,
+            sort="cited_by_count"
+        )
+        for p in papers:
+            print(f"[{p.citations_count}] {p.title} ({p.year})")
+
+    # Crossref search with filters
+    async with CrossrefClient() as client:
+        papers = await client.search(
+            "CRISPR gene editing",
+            limit=10,
+            year=2024,
+            has_abstract=True,
+            type="journal-article"
+        )
+
+asyncio.run(search_example())
+```
+
+### Get Paper by DOI
+
+```python
+async def get_paper_example():
+    async with CrossrefClient() as client:
+        paper = await client.get_paper("10.1038/nature14539")
+        print(f"Title: {paper.title}")
+        print(f"Authors: {', '.join(paper.authors)}")
+        print(f"Citations: {paper.citations_count}")
+        print(f"References: {paper.references_count}")
+
+asyncio.run(get_paper_example())
+```
+
+### Journal-Specific Search
+
+```python
+async def journal_search():
+    async with CrossrefClient() as client:
+        # Get journal metadata
+        journal = await client.get_journal("0028-0836")
+        print(f"Journal: {journal['title']}")
+        print(f"Total articles: {journal['counts']['total-dois']}")
+
+        # Search within journal
+        papers = await client.get_journal_works(
+            "0028-0836",
+            query="artificial intelligence",
+            limit=10
+        )
+
+asyncio.run(journal_search())
+```
+
+### Funder-Specific Search
+
+```python
+async def funder_search():
+    async with CrossrefClient() as client:
+        # Get funder info
+        funder = await client.get_funder("100000001")  # NSF
+        print(f"Funder: {funder['name']}")
+        print(f"Funded papers: {funder['work-count']}")
+
+        # Search funded papers
+        papers = await client.get_funder_works(
+            "100000001",
+            query="machine learning",
+            limit=10
+        )
+
+asyncio.run(funder_search())
+```
+
+### Multi-Source Aggregation
+
+```python
+from paper_ladder.aggregator import Aggregator
+
+async def aggregated_search():
+    async with Aggregator(sources=["openalex", "crossref", "semantic_scholar"]) as agg:
+        result = await agg.search("quantum computing", limit=10)
+        print(f"Total papers: {len(result.papers)}")
+        print(f"Sources queried: {result.sources_queried}")
+        if result.errors:
+            print(f"Errors: {result.errors}")
+
+asyncio.run(aggregated_search())
+```
+
+### Pagination for Large Results
+
+```python
+async def paginated_search():
+    async with CrossrefClient() as client:
+        all_papers = []
+        # Crossref allows up to 1000 per request
+        for offset in range(0, 3000, 1000):
+            papers = await client.search("climate change", limit=1000, offset=offset)
+            all_papers.extend(papers)
+            if len(papers) < 1000:
+                break
+        print(f"Total retrieved: {len(all_papers)}")
+
+asyncio.run(paginated_search())
 ```
 
 ---

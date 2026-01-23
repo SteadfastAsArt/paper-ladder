@@ -23,6 +23,7 @@ class RateLimits(BaseModel):
     semantic_scholar: float = 10
     elsevier: float = 5
     google_scholar: float = 1
+    crossref: float = 50  # Polite pool allows higher rates
 
 
 class Config(BaseModel):

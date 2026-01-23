@@ -1,506 +1,519 @@
 # Paper-Ladder Architecture
 
-This document describes the data models, data flow, and overall architecture of Paper-Ladder.
+## System Overview
 
-## Overview
-
-Paper-Ladder is designed around three core concepts:
-
-1. **Search & Discovery** - Query multiple academic APIs to find papers
-2. **Aggregation** - Merge and deduplicate results from multiple sources
-3. **Extraction** - Convert paper content (PDF/HTML) to structured Markdown
+Paper-Ladder is a Python library for academic paper search and content extraction. It provides a unified interface to multiple academic APIs with automatic rate limiting, deduplication, and result aggregation.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                              User Interface                                  │
-│                         (CLI / Python API)                                   │
+│                              User Application                                │
+│                         (CLI / Python API / Scripts)                         │
 └─────────────────────────────────────────────────────────────────────────────┘
-                                    │
-                                    ▼
+                                      │
+                                      ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                              Aggregator                                      │
+│                               Aggregator                                     │
 │                    (Multi-source search & deduplication)                     │
 └─────────────────────────────────────────────────────────────────────────────┘
-                                    │
-              ┌─────────────────────┼─────────────────────┐
-              ▼                     ▼                     ▼
-┌───────────────────┐   ┌───────────────────┐   ┌───────────────────┐
-│   OpenAlex        │   │ Semantic Scholar  │   │    Elsevier       │
-│   Client          │   │ Client            │   │    Client         │
-└───────────────────┘   └───────────────────┘   └───────────────────┘
-              │                     │                     │
-              └─────────────────────┼─────────────────────┘
-                                    ▼
+                                      │
+          ┌───────────────────────────┼───────────────────────────┐
+          ▼                           ▼                           ▼
+┌─────────────────┐         ┌─────────────────┐         ┌─────────────────┐
+│   OpenAlex      │         │ Semantic Scholar │         │    Crossref     │
+│   Client        │         │    Client        │         │    Client       │
+└─────────────────┘         └─────────────────┘         └─────────────────┘
+          │                           │                           │
+          ▼                           ▼                           ▼
+┌─────────────────┐         ┌─────────────────┐         ┌─────────────────┐
+│   Elsevier      │         │ Google Scholar   │         │   (Future       │
+│   Client        │         │   Client         │         │    Clients)     │
+└─────────────────┘         └─────────────────┘         └─────────────────┘
+          │                           │                           │
+          └───────────────────────────┼───────────────────────────┘
+                                      │
+                                      ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                           Unified Data Models                                │
-│              (Paper, Author, Institution, SearchResult)                      │
+│                             Base Client                                      │
+│              (HTTP client, rate limiting, error handling)                    │
 └─────────────────────────────────────────────────────────────────────────────┘
-                                    │
-                                    ▼
+                                      │
+                                      ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                              Extractors                                      │
-│                    (PDF via MinerU, HTML via BeautifulSoup)                  │
-└─────────────────────────────────────────────────────────────────────────────┘
-                                    │
-                                    ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                          ExtractedContent                                    │
-│                    (Markdown + Figures + Tables)                             │
+│                          External APIs                                       │
+│     OpenAlex │ Semantic Scholar │ Crossref │ Elsevier │ SerpAPI            │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
----
+## Project Structure
 
-## Data Models
-
-All models are defined in `src/paper_ladder/models.py` using Pydantic for validation.
-
-### Paper
-
-The core model representing an academic paper's metadata.
-
-```python
-class Paper(BaseModel):
-    # Required
-    title: str                              # Paper title
-    source: str                             # Data source (e.g., "openalex", "semantic_scholar")
-
-    # Identifiers
-    doi: str | None                         # Digital Object Identifier
-
-    # Metadata
-    authors: list[str]                      # List of author names
-    abstract: str | None                    # Paper abstract
-    year: int | None                        # Publication year
-    journal: str | None                     # Journal/venue name
-
-    # URLs
-    url: str | None                         # Landing page URL
-    pdf_url: str | None                     # Direct PDF link
-
-    # Metrics
-    citations_count: int | None             # Number of citations
-    references_count: int | None            # Number of references
-    open_access: bool | None                # Open access status
-    keywords: list[str]                     # Subject keywords/concepts
-
-    # Raw data
-    raw_data: dict[str, Any]                # Original API response
 ```
-
-**Key behaviors:**
-- Equality is based on DOI (if present) or title (case-insensitive)
-- Hash is computed from DOI or title for set operations
-- This enables automatic deduplication when aggregating from multiple sources
-
-### Author
-
-Represents an author with their metadata and metrics.
-
-```python
-class Author(BaseModel):
-    # Required
-    name: str                               # Author's display name
-
-    # Identifiers
-    source_id: str | None                   # Source-specific ID
-    source: str | None                      # Data source
-    orcid: str | None                       # ORCID identifier
-
-    # Affiliation
-    affiliations: list[str]                 # List of institution names
-
-    # URLs
-    url: str | None                         # Profile URL
-
-    # Metrics
-    paper_count: int | None                 # Number of publications
-    citation_count: int | None              # Total citations
-    h_index: int | None                     # h-index
-
-    # Raw data
-    raw_data: dict[str, Any]                # Original API response
+paper-ladder/
+├── src/paper_ladder/
+│   ├── __init__.py           # Package exports
+│   ├── models.py             # Pydantic data models
+│   ├── config.py             # Configuration loader
+│   ├── aggregator.py         # Multi-source aggregation
+│   ├── utils.py              # Utility functions
+│   ├── cli.py                # Typer CLI application
+│   ├── clients/
+│   │   ├── __init__.py       # Client registry
+│   │   ├── base.py           # Abstract base client
+│   │   ├── openalex.py       # OpenAlex API client
+│   │   ├── semantic_scholar.py
+│   │   ├── crossref.py       # Crossref API client
+│   │   ├── elsevier.py       # Scopus/ScienceDirect client
+│   │   └── google_scholar.py # SerpAPI client
+│   └── extractors/
+│       ├── __init__.py
+│       ├── pdf.py            # MinerU PDF extraction
+│       ├── html.py           # HTML extraction
+│       └── structured.py     # Structured content parsing
+├── tests/
+├── docs/
+├── config.example.yaml
+├── pyproject.toml
+├── CLAUDE.md                 # Development guide
+└── README.md                 # User documentation
 ```
-
-### Institution
-
-Represents an academic institution or affiliation.
-
-```python
-class Institution(BaseModel):
-    # Required
-    name: str                               # Institution name
-
-    # Identifiers
-    source_id: str | None                   # Source-specific ID
-    source: str | None                      # Data source
-
-    # Metadata
-    country: str | None                     # Country code (e.g., "US", "GB")
-    type: str | None                        # Type: "education", "company", "healthcare", etc.
-
-    # URLs
-    url: str | None                         # Homepage URL
-
-    # Metrics
-    paper_count: int | None                 # Number of publications
-    citation_count: int | None              # Total citations
-
-    # Raw data
-    raw_data: dict[str, Any]                # Original API response
-```
-
-### ExtractedContent
-
-Represents content extracted from a paper (PDF or HTML).
-
-```python
-class ExtractedContent(BaseModel):
-    markdown: str                           # Body text as Markdown
-    metadata: dict[str, Any]                # Extracted metadata
-    figures: list[str]                      # Paths to extracted figures
-    tables: list[str]                       # Extracted tables (HTML format)
-    source_url: str | None                  # Original URL
-    source_type: str | None                 # "pdf" or "html"
-```
-
-### SearchResult
-
-Container for search results from multiple sources.
-
-```python
-class SearchResult(BaseModel):
-    query: str                              # Original search query
-    papers: list[Paper]                     # List of found papers
-    total_results: int | None               # Total available (if known)
-    sources_queried: list[str]              # Sources that were queried
-    errors: dict[str, str]                  # Errors by source (if any)
-```
-
----
 
 ## Data Flow
 
-### 1. Search Flow
+### Search Flow
 
 ```
-User Query
-    │
-    ▼
-┌─────────────────────────────────────────────────────────────────┐
-│ Aggregator.search(query, sources=["openalex", "semantic_scholar"])
-│                                                                 │
-│  1. Validate sources                                            │
-│  2. Create client instances                                     │
-│  3. Execute searches concurrently (asyncio.gather)              │
-│  4. Collect results and errors                                  │
-└─────────────────────────────────────────────────────────────────┘
-    │
-    ▼
-┌─────────────────────────────────────────────────────────────────┐
-│ For each source (concurrent):                                   │
-│                                                                 │
-│  OpenAlexClient.search(query)                                   │
-│    │                                                            │
-│    ├─► Rate limiter.acquire()                                   │
-│    ├─► HTTP GET /works?search={query}                           │
-│    ├─► Parse JSON response                                      │
-│    └─► _parse_work() → Paper objects                            │
-│                                                                 │
-│  SemanticScholarClient.search(query)                            │
-│    │                                                            │
-│    ├─► Rate limiter.acquire()                                   │
-│    ├─► HTTP GET /paper/search?query={query}                     │
-│    ├─► Parse JSON response                                      │
-│    └─► _parse_paper() → Paper objects                           │
-└─────────────────────────────────────────────────────────────────┘
-    │
-    ▼
-┌─────────────────────────────────────────────────────────────────┐
-│ Aggregator._merge_results(all_papers)                           │
-│                                                                 │
-│  1. Flatten all paper lists                                     │
-│  2. Group by DOI (if present) or title                          │
-│  3. Merge metadata from multiple sources                        │
-│  4. Prefer: DOI > abstract > year > etc.                        │
-│  5. Return deduplicated list                                    │
-└─────────────────────────────────────────────────────────────────┘
-    │
-    ▼
-SearchResult(
-    query="machine learning",
-    papers=[Paper(...), Paper(...), ...],
-    sources_queried=["openalex", "semantic_scholar"],
-    errors={}
-)
+User Query: "machine learning"
+            │
+            ▼
+┌───────────────────────────────────────────────────────────────┐
+│                        Aggregator.search()                     │
+│  sources=["openalex", "crossref", "semantic_scholar"]          │
+└───────────────────────────────────────────────────────────────┘
+            │
+            │  Parallel async requests
+            ▼
+┌───────────┬───────────┬───────────┐
+│ OpenAlex  │ Crossref  │ Semantic  │
+│  search() │  search() │ Scholar   │
+│           │           │  search() │
+└─────┬─────┴─────┬─────┴─────┬─────┘
+      │           │           │
+      ▼           ▼           ▼
+┌───────────────────────────────────┐
+│        Rate Limiter               │
+│  (Per-client, configurable)       │
+│  OpenAlex: 10/s                   │
+│  Crossref: 50/s                   │
+│  Semantic Scholar: 0.33/s         │
+└───────────────────────────────────┘
+      │           │           │
+      ▼           ▼           ▼
+┌───────────────────────────────────┐
+│      External API Responses       │
+│  (JSON → Paper objects)           │
+└───────────────────────────────────┘
+      │           │           │
+      └─────┬─────┴─────┬─────┘
+            │           │
+            ▼           ▼
+┌───────────────────────────────────┐
+│         Result Merging            │
+│  - Round-robin interleaving       │
+│  - DOI-based deduplication        │
+│  - Title-based fallback dedup     │
+└───────────────────────────────────┘
+            │
+            ▼
+┌───────────────────────────────────┐
+│         SearchResult              │
+│  - papers: list[Paper]            │
+│  - total_results: int             │
+│  - sources_queried: list[str]     │
+│  - errors: dict[str, str]         │
+└───────────────────────────────────┘
 ```
 
-### 2. Paper Lookup Flow
+### Paper Retrieval Flow
 
 ```
-DOI or Identifier
-    │
-    ▼
-┌─────────────────────────────────────────────────────────────────┐
-│ Client.get_paper(identifier)                                    │
-│                                                                 │
-│  1. Normalize identifier (DOI format, etc.)                     │
-│  2. Rate limiter.acquire()                                      │
-│  3. HTTP GET to source-specific endpoint                        │
-│  4. Parse response into Paper                                   │
-└─────────────────────────────────────────────────────────────────┘
-    │
-    ▼
-Paper(title="...", doi="10.1234/...", ...)
+DOI: "10.1038/nature14539"
+            │
+            ▼
+┌───────────────────────────────────────────────────────────────┐
+│                      Aggregator.get_paper()                    │
+│                 or Client.get_paper(doi)                       │
+└───────────────────────────────────────────────────────────────┘
+            │
+            ▼
+┌───────────────────────────────────────────────────────────────┐
+│                     DOI Normalization                          │
+│  "https://doi.org/10.1038/nature14539"                         │
+│  "doi:10.1038/nature14539"          →  "10.1038/nature14539"   │
+│  "10.1038/nature14539"                                         │
+└───────────────────────────────────────────────────────────────┘
+            │
+            ▼
+┌───────────────────────────────────────────────────────────────┐
+│                      API Request                               │
+│  OpenAlex:  GET /works/https://doi.org/10.1038/nature14539     │
+│  Crossref:  GET /works/10.1038/nature14539                     │
+│  Semantic:  GET /paper/DOI:10.1038/nature14539                 │
+└───────────────────────────────────────────────────────────────┘
+            │
+            ▼
+┌───────────────────────────────────────────────────────────────┐
+│                   Response Parsing                             │
+│  API-specific JSON → Unified Paper model                       │
+│  - Extract title, authors, abstract                            │
+│  - Normalize DOI, year, journal                                │
+│  - Parse citations_count, references_count                     │
+│  - Store raw_data for advanced use                             │
+└───────────────────────────────────────────────────────────────┘
+            │
+            ▼
+┌───────────────────────────────────────────────────────────────┐
+│                        Paper                                   │
+│  title: "Deep learning"                                        │
+│  authors: ["Yann LeCun", "Yoshua Bengio", "Geoffrey Hinton"]   │
+│  doi: "10.1038/nature14539"                                    │
+│  year: 2015                                                    │
+│  citations_count: 68506                                        │
+│  source: "crossref"                                            │
+└───────────────────────────────────────────────────────────────┘
 ```
 
-### 3. Content Extraction Flow
-
-```
-Paper URL or File Path
-    │
-    ▼
-┌─────────────────────────────────────────────────────────────────┐
-│ Determine content type                                          │
-│                                                                 │
-│  - .pdf extension → PDFExtractor                                │
-│  - .html/.htm extension → HTMLExtractor                         │
-│  - URL → Fetch and detect content type                          │
-└─────────────────────────────────────────────────────────────────┘
-    │
-    ├─────────────────────────┬───────────────────────────────────┐
-    ▼                         ▼
-┌──────────────────┐   ┌──────────────────┐
-│  PDFExtractor    │   │  HTMLExtractor   │
-│                  │   │                  │
-│  1. Download PDF │   │  1. Fetch HTML   │
-│  2. MinerU parse │   │  2. Parse DOM    │
-│  3. Extract text │   │  3. Extract      │
-│  4. Extract figs │   │     metadata     │
-│  5. Convert to   │   │  4. Convert to   │
-│     Markdown     │   │     Markdown     │
-└──────────────────┘   └──────────────────┘
-    │                         │
-    └─────────────────────────┘
-                │
-                ▼
-ExtractedContent(
-    markdown="# Title\n\n## Abstract\n...",
-    metadata={"title": "...", "authors": [...]},
-    figures=["fig1.png", "fig2.png"],
-    tables=["<table>...</table>"]
-)
-```
-
-### 4. Author/Institution Lookup Flow
-
-```
-Author Name or ID
-    │
-    ▼
-┌─────────────────────────────────────────────────────────────────┐
-│ Client.search_authors(query) or Client.get_author(id)           │
-│                                                                 │
-│  OpenAlex:                                                      │
-│    GET /authors?search={query}                                  │
-│    → _parse_author() → Author objects                           │
-│                                                                 │
-│  Semantic Scholar:                                              │
-│    GET /author/search?query={query}                             │
-│    → _parse_author() → Author objects                           │
-│                                                                 │
-│  Elsevier:                                                      │
-│    GET /content/search/author?query=AUTHLAST({query})           │
-│    → _parse_author_entry() → Author objects                     │
-└─────────────────────────────────────────────────────────────────┘
-    │
-    ▼
-[Author(name="John Doe", h_index=45, ...), ...]
-```
-
----
-
-## Client Architecture
+## Component Details
 
 ### BaseClient
 
-All API clients inherit from `BaseClient` which provides:
+Abstract base class providing common functionality for all API clients.
 
 ```python
 class BaseClient(ABC):
-    name: str                    # Client identifier
-    base_url: str                # API base URL
+    name: str           # Client identifier (e.g., "openalex")
+    base_url: str       # API base URL
 
-    # Shared functionality
-    @property
-    def client(self) -> httpx.AsyncClient     # HTTP client with proxy support
-    @property
-    def rate_limiter(self) -> RateLimiter     # Per-source rate limiting
-
-    async def _get(url, **kwargs)             # Rate-limited GET
-    async def _post(url, **kwargs)            # Rate-limited POST
+    # Lazy-initialized
+    _client: httpx.AsyncClient
+    _rate_limiter: RateLimiter
 
     # Abstract methods (must implement)
     async def search(query, limit, offset, **kwargs) -> list[Paper]
     async def get_paper(identifier) -> Paper | None
+
+    # Provided methods
+    async def _get(url, **kwargs) -> Response   # Rate-limited GET
+    async def _post(url, **kwargs) -> Response  # Rate-limited POST
 ```
 
-### Client Hierarchy
+### Client Registry
 
-```
-BaseClient (abstract)
-    │
-    ├── OpenAlexClient
-    │     - No auth required
-    │     - Works, Authors, Institutions, Sources
-    │     - Abstract as inverted index
-    │
-    ├── SemanticScholarClient
-    │     - Optional API key (x-api-key header)
-    │     - Papers, Authors
-    │     - Batch operations, Recommendations
-    │
-    ├── ElsevierClient
-    │     - Required API key (X-ELS-APIKey header)
-    │     - Scopus search, Abstract retrieval
-    │     - Authors, Affiliations
-    │
-    └── GoogleScholarClient
-          - Required SerpAPI key (api_key param)
-          - Scrapes Google Scholar
-          - Author profiles, Citations
+```python
+# clients/__init__.py
+CLIENTS = {
+    "openalex": OpenAlexClient,
+    "semantic_scholar": SemanticScholarClient,
+    "crossref": CrossrefClient,
+    "elsevier": ElsevierClient,
+    "google_scholar": GoogleScholarClient,
+}
+
+def get_client(name: str) -> type[BaseClient]:
+    return CLIENTS[name]
 ```
 
----
-
-## Configuration Flow
+### Data Models
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│ config.yaml                                                     │
-│                                                                 │
-│   elsevier_api_key: "..."                                       │
-│   serpapi_api_key: "..."                                        │
-│   semantic_scholar_api_key: "..."  # Optional                   │
-│   proxy:                                                        │
-│     http: "http://127.0.0.1:7890"                               │
-│   default_sources: ["openalex", "semantic_scholar"]             │
-│   rate_limits:                                                  │
-│     openalex: 10                                                │
-│     semantic_scholar: 10                                        │
-└─────────────────────────────────────────────────────────────────┘
-                    │
-                    ▼
-┌─────────────────────────────────────────────────────────────────┐
-│ Config (Pydantic model)                                         │
-│                                                                 │
-│   load_config(path) → Config                                    │
-│   get_config() → Config (singleton)                             │
-│                                                                 │
-│   Properties:                                                   │
-│     .elsevier_api_key                                           │
-│     .serpapi_api_key                                            │
-│     .semantic_scholar_api_key                                   │
-│     .get_proxy_url() → str | None                               │
-│     .rate_limits.openalex → float                               │
-└─────────────────────────────────────────────────────────────────┘
-                    │
-                    ▼
-┌─────────────────────────────────────────────────────────────────┐
-│ Clients use config for:                                         │
-│   - API keys (headers/params)                                   │
-│   - Proxy settings (httpx client)                               │
-│   - Rate limits (RateLimiter)                                   │
-│   - Timeouts                                                    │
-└─────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────┐
+│                              Paper                                       │
+├─────────────────────────────────────────────────────────────────────────┤
+│ title: str                    # Paper title                              │
+│ authors: list[str]            # Author names                             │
+│ abstract: str | None          # Abstract text                            │
+│ doi: str | None               # DOI identifier                           │
+│ year: int | None              # Publication year                         │
+│ journal: str | None           # Journal/venue name                       │
+│ url: str | None               # Landing page URL                         │
+│ pdf_url: str | None           # Direct PDF link                          │
+│ source: str                   # Data source (e.g., "openalex")           │
+│ citations_count: int | None   # Number of citations                      │
+│ references_count: int | None  # Number of references                     │
+│ open_access: bool | None      # Open access status                       │
+│ keywords: list[str]           # Subject keywords                         │
+│ raw_data: dict                # Original API response                    │
+├─────────────────────────────────────────────────────────────────────────┤
+│ __hash__() → int              # Hash by DOI or title (for dedup)         │
+│ __eq__(other) → bool          # Equal by DOI or title                    │
+└─────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│                              Author                                      │
+├─────────────────────────────────────────────────────────────────────────┤
+│ name: str                     # Display name                             │
+│ source_id: str | None         # Source-specific ID                       │
+│ source: str | None            # Data source                              │
+│ affiliations: list[str]       # Institution affiliations                 │
+│ orcid: str | None             # ORCID identifier                         │
+│ url: str | None               # Profile URL                              │
+│ paper_count: int | None       # Number of publications                   │
+│ citation_count: int | None    # Total citations                          │
+│ h_index: int | None           # h-index                                  │
+│ raw_data: dict                # Original API response                    │
+└─────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│                           Institution                                    │
+├─────────────────────────────────────────────────────────────────────────┤
+│ name: str                     # Institution name                         │
+│ source_id: str | None         # Source-specific ID                       │
+│ source: str | None            # Data source                              │
+│ country: str | None           # Country code                             │
+│ type: str | None              # Type (education, company, etc.)          │
+│ url: str | None               # Homepage URL                             │
+│ paper_count: int | None       # Number of publications                   │
+│ citation_count: int | None    # Total citations                          │
+│ raw_data: dict                # Original API response                    │
+└─────────────────────────────────────────────────────────────────────────┘
 ```
 
----
+## API Client Capabilities
+
+```
+┌────────────────────┬──────────┬──────────┬──────────┬──────────┬──────────┐
+│ Capability         │ OpenAlex │ Semantic │ Crossref │ Elsevier │ Google   │
+│                    │          │ Scholar  │          │          │ Scholar  │
+├────────────────────┼──────────┼──────────┼──────────┼──────────┼──────────┤
+│ search()           │    ✓     │    ✓     │    ✓     │    ✓     │    ✓     │
+│ get_paper()        │    ✓     │    ✓     │    ✓     │    ✓     │    ✓     │
+│ get_citations()    │    ✓     │    ✓     │    ✗     │    ✓     │    ✓     │
+│ get_references()   │    ✓     │    ✓     │    ✓     │    ✗     │    ✗     │
+│ search_authors()   │    ✓     │    ✓     │    ✗     │    ✓     │    ✓     │
+│ get_author()       │    ✓     │    ✓     │    ✗     │    ✓     │    ✓     │
+│ author_papers()    │    ✓     │    ✓     │    ✗     │    ✓     │    ✓     │
+│ institutions()     │    ✓     │    ✗     │    ✗     │    ✓     │    ✗     │
+│ get_journal()      │    ✗     │    ✗     │    ✓     │    ✗     │    ✗     │
+│ journal_works()    │    ✗     │    ✗     │    ✓     │    ✗     │    ✗     │
+│ get_funder()       │    ✗     │    ✗     │    ✓     │    ✗     │    ✗     │
+│ funder_works()     │    ✗     │    ✗     │    ✓     │    ✗     │    ✗     │
+│ recommendations()  │    ✗     │    ✓     │    ✗     │    ✗     │    ✗     │
+│ batch_lookup()     │    ✗     │    ✓     │    ✗     │    ✗     │    ✗     │
+├────────────────────┼──────────┼──────────┼──────────┼──────────┼──────────┤
+│ Requires API Key   │    ✗     │ Optional │    ✗     │    ✓     │    ✓     │
+│ Free               │    ✓     │    ✓     │    ✓     │    ✗     │    ✗     │
+│ Max per request    │   200    │   100    │  1,000   │    25    │    20    │
+│ Rate limit (req/s) │   ~10    │  ~0.33*  │   ~50    │   ~2     │   ~1     │
+└────────────────────┴──────────┴──────────┴──────────┴──────────┴──────────┘
+* Semantic Scholar: 1/s with API key
+```
 
 ## Rate Limiting
 
-Each client has its own rate limiter based on configured limits:
+Each client has an independent rate limiter based on the configuration.
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│ RateLimiter(requests_per_second)                                │
-│                                                                 │
-│   async def acquire():                                          │
-│     1. Calculate time since last request                        │
-│     2. If too soon, sleep for remaining interval                │
-│     3. Update last request timestamp                            │
-│     4. Return (request may proceed)                             │
-│                                                                 │
-│   Example (10 req/sec = 100ms between requests):                │
-│     Request 1: immediate                                        │
-│     Request 2: wait ~100ms                                      │
-│     Request 3: wait ~100ms                                      │
-└─────────────────────────────────────────────────────────────────┘
+```python
+class RateLimiter:
+    def __init__(self, requests_per_second: float):
+        self.min_interval = 1.0 / requests_per_second
+
+    async def acquire(self):
+        # Wait if needed to respect rate limit
+        elapsed = now - self.last_request_time
+        if elapsed < self.min_interval:
+            await asyncio.sleep(self.min_interval - elapsed)
 ```
 
----
+Default rate limits (config.py):
+```python
+class RateLimits:
+    openalex: float = 10          # 10 req/s
+    semantic_scholar: float = 10  # 10 req/s (with API key)
+    crossref: float = 50          # 50 req/s (polite pool)
+    elsevier: float = 5           # 5 req/s
+    google_scholar: float = 1     # 1 req/s
+```
+
+## Configuration
+
+```yaml
+# config.yaml
+
+# API Keys
+elsevier_api_key: "xxx"           # Required for Elsevier
+serpapi_api_key: "xxx"            # Required for Google Scholar
+semantic_scholar_api_key: "xxx"   # Optional, higher rate limits
+
+# Default sources for aggregated search
+default_sources:
+  - openalex
+  - crossref
+  - semantic_scholar
+
+# Rate limits (requests per second)
+rate_limits:
+  openalex: 10
+  semantic_scholar: 10
+  crossref: 50
+  elsevier: 5
+  google_scholar: 1
+
+# Request settings
+request_timeout: 30
+max_retries: 3
+
+# Output directory for extractions
+output_dir: "./output"
+
+# Proxy settings (optional)
+proxy:
+  http: "http://proxy:8080"
+  https: "http://proxy:8080"
+```
 
 ## Error Handling
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│ Aggregator handles errors gracefully:                           │
-│                                                                 │
-│   try:                                                          │
-│     papers = await client.search(query)                         │
-│   except Exception as e:                                        │
-│     errors[source] = str(e)                                     │
-│     papers = []                                                 │
-│                                                                 │
-│ Result includes partial results + error info:                   │
-│   SearchResult(                                                 │
-│     papers=[...from working sources...],                        │
-│     errors={"semantic_scholar": "429 Too Many Requests"}        │
-│   )                                                             │
-└─────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────┐
+│                         Error Handling Flow                              │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                          │
+│  API Request                                                             │
+│      │                                                                   │
+│      ▼                                                                   │
+│  ┌─────────────┐     Success      ┌──────────────┐                      │
+│  │ Rate Limit  │ ───────────────► │ Parse JSON   │                      │
+│  │   Check     │                  │   Response   │                      │
+│  └─────────────┘                  └──────────────┘                      │
+│      │                                   │                               │
+│      │ 429 Too Many Requests             │ Parse Error                   │
+│      ▼                                   ▼                               │
+│  ┌─────────────┐                  ┌──────────────┐                      │
+│  │   Wait &    │                  │ Return None  │                      │
+│  │   Retry     │                  │  or Empty    │                      │
+│  └─────────────┘                  └──────────────┘                      │
+│                                                                          │
+│  Aggregator handles errors gracefully:                                   │
+│  - Failed sources are recorded in SearchResult.errors                    │
+│  - Other sources still return results                                    │
+│  - No exception thrown to caller                                         │
+│                                                                          │
+└─────────────────────────────────────────────────────────────────────────┘
 ```
 
----
+## Crossref Unique Features
 
-## CLI Data Flow
+### Journal Metadata
 
+Crossref provides unique access to journal-level metadata:
+
+```python
+async with CrossrefClient() as client:
+    # Get journal info by ISSN
+    journal = await client.get_journal("0028-0836")  # Nature
+    
+    # Returns:
+    # {
+    #   "title": "Nature",
+    #   "publisher": "Springer Science and Business Media LLC",
+    #   "ISSN": ["0028-0836", "1476-4687"],
+    #   "counts": {
+    #     "total-dois": 444301,
+    #     "current-dois": 9179,
+    #     "backfile-dois": 435122
+    #   },
+    #   "coverage": {
+    #     "abstracts-current": 0.119,
+    #     "references-current": 0.634,
+    #     "orcids-current": 0.395
+    #   }
+    # }
+    
+    # Search papers within a specific journal
+    papers = await client.get_journal_works("0028-0836", query="AI", limit=20)
 ```
-$ paper-ladder search "transformer architecture" --sources openalex
 
-┌─────────────────────────────────────────────────────────────────┐
-│ CLI (typer)                                                     │
-│                                                                 │
-│   @app.command()                                                │
-│   def search(query, sources, limit, output):                    │
-│     result = asyncio.run(aggregator.search(...))                │
-│     if output:                                                  │
-│       write_json(output, result)                                │
-│     else:                                                       │
-│       print_table(result.papers)                                │
-└─────────────────────────────────────────────────────────────────┘
+### Funder Metadata
+
+Search by funding agency:
+
+```python
+async with CrossrefClient() as client:
+    # Get funder info
+    funder = await client.get_funder("501100001809")  # NSFC
+    
+    # Returns:
+    # {
+    #   "name": "National Natural Science Foundation of China",
+    #   "location": "China",
+    #   "work-count": 3104226,
+    #   "alt-names": ["NSFC", "国家自然科学基金委员会", ...]
+    # }
+    
+    # Search papers funded by this agency
+    papers = await client.get_funder_works("501100001809", query="deep learning")
 ```
 
----
+**Common Funder IDs**:
 
-## File Structure Summary
+| Funder | ID | Country | Papers |
+|--------|-----|---------|--------|
+| NSFC | 501100001809 | China | 3.1M |
+| NIH | 100000002 | US | 443K |
+| NSF | 100000001 | US | 428K |
+| JSPS | 501100001691 | Japan | 246K |
+| DOE | 100000015 | US | 139K |
+| EPSRC | 501100000266 | UK | 112K |
+| DARPA | 100000185 | US | 19K |
 
+## Extending the Library
+
+### Adding a New Client
+
+1. Create `src/paper_ladder/clients/new_source.py`:
+
+```python
+from paper_ladder.clients.base import BaseClient
+from paper_ladder.models import Paper
+
+class NewSourceClient(BaseClient):
+    name = "new_source"
+    base_url = "https://api.newsource.com"
+
+    async def search(self, query, limit=10, offset=0, **kwargs):
+        params = {"q": query, "limit": limit, "offset": offset}
+        response = await self._get("/search", params=params)
+        return [self._parse_paper(item) for item in response.json()["results"]]
+
+    async def get_paper(self, identifier):
+        try:
+            response = await self._get(f"/papers/{identifier}")
+            return self._parse_paper(response.json())
+        except Exception:
+            return None
+
+    def _parse_paper(self, data):
+        return Paper(
+            title=data["title"],
+            authors=data.get("authors", []),
+            doi=data.get("doi"),
+            year=data.get("year"),
+            source=self.name,
+            raw_data=data,
+        )
 ```
-paper_ladder/
-├── models.py          # Paper, Author, Institution, ExtractedContent, SearchResult
-├── config.py          # Config loading and validation
-├── utils.py           # DOI normalization, rate limiting, text cleaning
-├── aggregator.py      # Multi-source search orchestration
-├── cli.py             # Command-line interface
-│
-├── clients/
-│   ├── base.py        # BaseClient abstract class
-│   ├── openalex.py    # OpenAlex API client
-│   ├── semantic_scholar.py  # Semantic Scholar API client
-│   ├── elsevier.py    # Elsevier/Scopus API client
-│   └── google_scholar.py    # Google Scholar via SerpAPI
-│
-└── extractors/
-    ├── base.py        # BaseExtractor abstract class
-    ├── pdf_extractor.py   # MinerU-based PDF extraction
-    └── html_extractor.py  # BeautifulSoup HTML extraction
+
+2. Register in `src/paper_ladder/clients/__init__.py`:
+
+```python
+from paper_ladder.clients.new_source import NewSourceClient
+
+CLIENTS["new_source"] = NewSourceClient
+__all__.append("NewSourceClient")
+```
+
+3. Add rate limit in `src/paper_ladder/config.py`:
+
+```python
+class RateLimits:
+    # ...existing...
+    new_source: float = 10
 ```
