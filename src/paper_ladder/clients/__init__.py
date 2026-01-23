@@ -10,16 +10,16 @@ from paper_ladder.clients.semantic_scholar import SemanticScholarClient
 from paper_ladder.clients.wos import WebOfScienceClient
 
 __all__ = [
+    "CLIENTS",
     "BaseClient",
-    "OpenAlexClient",
-    "SemanticScholarClient",
+    "CrossrefClient",
     "ElsevierClient",
     "GoogleScholarClient",
-    "CrossrefClient",
+    "OpenAlexClient",
     "PubMedClient",
+    "SemanticScholarClient",
     "WebOfScienceClient",
     "get_client",
-    "CLIENTS",
 ]
 
 # Registry of available clients

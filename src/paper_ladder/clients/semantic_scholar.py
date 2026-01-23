@@ -87,12 +87,10 @@ class SemanticScholarClient(BaseClient):
             params["year"] = kwargs["year"]
         if "fields_of_study" in kwargs:
             params["fieldsOfStudy"] = kwargs["fields_of_study"]
-        if "open_access" in kwargs and kwargs["open_access"]:
+        if kwargs.get("open_access"):
             params["openAccessPdf"] = ""
 
-        response = await self._get(
-            "/paper/search", params=params, headers=self._get_headers()
-        )
+        response = await self._get("/paper/search", params=params, headers=self._get_headers())
         data = response.json()
 
         papers = []
@@ -251,9 +249,7 @@ class SemanticScholarClient(BaseClient):
             "fields": ",".join(self.AUTHOR_FIELDS),
         }
 
-        response = await self._get(
-            "/author/search", params=params, headers=self._get_headers()
-        )
+        response = await self._get("/author/search", params=params, headers=self._get_headers())
         data = response.json()
 
         authors = []
@@ -532,9 +528,7 @@ class SemanticScholarClient(BaseClient):
             return None
 
         # Extract authors
-        authors = [
-            a.get("name", "") for a in data.get("authors", []) if a.get("name")
-        ]
+        authors = [a.get("name", "") for a in data.get("authors", []) if a.get("name")]
 
         # Extract DOI from external IDs
         external_ids = data.get("externalIds", {}) or {}

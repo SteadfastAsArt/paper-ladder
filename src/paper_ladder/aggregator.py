@@ -3,15 +3,11 @@
 from __future__ import annotations
 
 import asyncio
-from typing import TYPE_CHECKING
 
 from paper_ladder.clients import CLIENTS, BaseClient
 from paper_ladder.config import Config, get_config
 from paper_ladder.models import Paper, SearchResult
 from paper_ladder.utils import normalize_doi, normalize_title
-
-if TYPE_CHECKING:
-    pass
 
 
 class Aggregator:
@@ -262,9 +258,7 @@ class Aggregator:
             sources.append(paper.source)
 
             # Prefer longer abstract
-            if paper.abstract and (
-                not best_abstract or len(paper.abstract) > len(best_abstract)
-            ):
+            if paper.abstract and (not best_abstract or len(paper.abstract) > len(best_abstract)):
                 best_abstract = paper.abstract
 
             # Prefer more authors

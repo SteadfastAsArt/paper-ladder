@@ -1,6 +1,5 @@
 """Tests for utility functions."""
 
-
 from paper_ladder.utils import (
     clean_html_text,
     extract_year_from_date,

@@ -56,8 +56,7 @@ class GoogleScholarClient(BaseClient):
         """
         if not self.api_key:
             raise ValueError(
-                "SerpAPI key required for Google Scholar. "
-                "Set 'serpapi_api_key' in config.yaml"
+                "SerpAPI key required for Google Scholar. Set 'serpapi_api_key' in config.yaml"
             )
 
         params: dict[str, Any] = {
@@ -102,8 +101,7 @@ class GoogleScholarClient(BaseClient):
         """
         if not self.api_key:
             raise ValueError(
-                "SerpAPI key required for Google Scholar. "
-                "Set 'serpapi_api_key' in config.yaml"
+                "SerpAPI key required for Google Scholar. Set 'serpapi_api_key' in config.yaml"
             )
 
         # Search for the identifier
@@ -152,8 +150,7 @@ class GoogleScholarClient(BaseClient):
         """
         if not self.api_key:
             raise ValueError(
-                "SerpAPI key required for Google Scholar. "
-                "Set 'serpapi_api_key' in config.yaml"
+                "SerpAPI key required for Google Scholar. Set 'serpapi_api_key' in config.yaml"
             )
 
         params: dict[str, Any] = {
@@ -200,8 +197,7 @@ class GoogleScholarClient(BaseClient):
         """
         if not self.api_key:
             raise ValueError(
-                "SerpAPI key required for Google Scholar. "
-                "Set 'serpapi_api_key' in config.yaml"
+                "SerpAPI key required for Google Scholar. Set 'serpapi_api_key' in config.yaml"
             )
 
         # Build mauthors parameter for filtering
@@ -242,8 +238,7 @@ class GoogleScholarClient(BaseClient):
         """
         if not self.api_key:
             raise ValueError(
-                "SerpAPI key required for Google Scholar. "
-                "Set 'serpapi_api_key' in config.yaml"
+                "SerpAPI key required for Google Scholar. Set 'serpapi_api_key' in config.yaml"
             )
 
         params: dict[str, Any] = {
@@ -279,8 +274,7 @@ class GoogleScholarClient(BaseClient):
         """
         if not self.api_key:
             raise ValueError(
-                "SerpAPI key required for Google Scholar. "
-                "Set 'serpapi_api_key' in config.yaml"
+                "SerpAPI key required for Google Scholar. Set 'serpapi_api_key' in config.yaml"
             )
 
         params: dict[str, Any] = {

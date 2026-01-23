@@ -83,18 +83,16 @@ def search_cmd(
     query: Annotated[str, typer.Argument(help="Search query")],
     sources: Annotated[
         str | None,
-        typer.Option(
-            "--sources", "-s",
-            help="Comma-separated list of sources"
-        ),
+        typer.Option("--sources", "-s", help="Comma-separated list of sources"),
     ] = None,
     limit: Annotated[int, typer.Option("--limit", "-l", help="Max results per source")] = 10,
     config_file: Annotated[
-        Path | None,
-        typer.Option("--config", "-c", help="Path to config file")
+        Path | None, typer.Option("--config", "-c", help="Path to config file")
     ] = None,
     output_json: Annotated[bool, typer.Option("--json", help="Output as JSON")] = False,
-    deduplicate: Annotated[bool, typer.Option("--deduplicate/--no-deduplicate", help="Deduplicate results")] = True,
+    deduplicate: Annotated[
+        bool, typer.Option("--deduplicate/--no-deduplicate", help="Deduplicate results")
+    ] = True,
     verbose: Annotated[bool, typer.Option("--verbose", "-v", help="Show more details")] = False,
 ) -> None:
     """Search for academic papers."""
@@ -129,8 +127,7 @@ def info(
         typer.Option("--sources", "-s", help="Comma-separated list of sources"),
     ] = None,
     config_file: Annotated[
-        Path | None,
-        typer.Option("--config", "-c", help="Path to config file")
+        Path | None, typer.Option("--config", "-c", help="Path to config file")
     ] = None,
     output_json: Annotated[bool, typer.Option("--json", help="Output as JSON")] = False,
     merge: Annotated[
@@ -169,13 +166,9 @@ def info(
 @app.command()
 def extract(
     source: Annotated[str, typer.Argument(help="URL or file path to extract from")],
-    output: Annotated[
-        Path | None,
-        typer.Option("--output", "-o", help="Output file path")
-    ] = None,
+    output: Annotated[Path | None, typer.Option("--output", "-o", help="Output file path")] = None,
     config_file: Annotated[
-        Path | None,
-        typer.Option("--config", "-c", help="Path to config file")
+        Path | None, typer.Option("--config", "-c", help="Path to config file")
     ] = None,
     output_json: Annotated[bool, typer.Option("--json", help="Output metadata as JSON")] = False,
 ) -> None:
@@ -223,8 +216,7 @@ def extract(
 @app.command(name="config")
 def config_show(
     config_file: Annotated[
-        Path | None,
-        typer.Option("--config", "-c", help="Path to config file")
+        Path | None, typer.Option("--config", "-c", help="Path to config file")
     ] = None,
 ) -> None:
     """Show current configuration."""
@@ -260,9 +252,7 @@ def sources() -> None:
     }
 
     for name in CLIENTS:
-        display_name, rate_limit, needs_key = source_info.get(
-            name, (name, "Unknown", "Unknown")
-        )
+        display_name, rate_limit, needs_key = source_info.get(name, (name, "Unknown", "Unknown"))
         typer.echo(f"  {name}")
         typer.echo(f"    Name: {display_name}")
         typer.echo(f"    Rate limit: {rate_limit}")

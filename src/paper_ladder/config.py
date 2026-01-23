@@ -43,9 +43,7 @@ class Config(BaseModel):
     proxy: ProxyConfig | None = None
 
     # Default sources
-    default_sources: list[str] = Field(
-        default_factory=lambda: ["openalex", "semantic_scholar"]
-    )
+    default_sources: list[str] = Field(default_factory=lambda: ["openalex", "semantic_scholar"])
 
     # Request settings
     request_timeout: int = 30

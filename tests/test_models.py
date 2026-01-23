@@ -1,6 +1,5 @@
 """Tests for data models."""
 
-
 from paper_ladder.models import (
     BookStructure,
     ChapterNode,

@@ -32,7 +32,7 @@ class OpenAlexClient(BaseClient):
     name = "openalex"
     base_url = "https://api.openalex.org"
 
-    async def _get(self, url: str, **kwargs: object) -> "httpx.Response":
+    async def _get(self, url: str, **kwargs: object) -> httpx.Response:
         """Make a rate-limited GET request with API key."""
         # Add API key to params if configured
         if self.config.openalex_api_key:

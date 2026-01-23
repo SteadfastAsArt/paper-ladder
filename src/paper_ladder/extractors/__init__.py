@@ -6,12 +6,12 @@ from paper_ladder.extractors.pdf_extractor import PDFExtractor
 from paper_ladder.extractors.structured_extractor import StructuredExtractor
 
 __all__ = [
+    "EXTRACTORS",
     "BaseExtractor",
-    "PDFExtractor",
     "HTMLExtractor",
+    "PDFExtractor",
     "StructuredExtractor",
     "get_extractor",
-    "EXTRACTORS",
 ]
 
 # Registry of available extractors

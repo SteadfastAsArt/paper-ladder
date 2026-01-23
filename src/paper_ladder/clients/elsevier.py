@@ -65,9 +65,7 @@ class ElsevierClient(BaseClient):
             ValueError: If API key is not configured.
         """
         if not self.api_key:
-            raise ValueError(
-                "Elsevier API key required. Set 'elsevier_api_key' in config.yaml"
-            )
+            raise ValueError("Elsevier API key required. Set 'elsevier_api_key' in config.yaml")
 
         params: dict[str, Any] = {
             "query": query,
@@ -110,9 +108,7 @@ class ElsevierClient(BaseClient):
             ValueError: If API key is not configured.
         """
         if not self.api_key:
-            raise ValueError(
-                "Elsevier API key required. Set 'elsevier_api_key' in config.yaml"
-            )
+            raise ValueError("Elsevier API key required. Set 'elsevier_api_key' in config.yaml")
 
         # Determine identifier type
         normalized_doi = normalize_doi(identifier)
@@ -149,9 +145,7 @@ class ElsevierClient(BaseClient):
             ValueError: If API key is not configured.
         """
         if not self.api_key:
-            raise ValueError(
-                "Elsevier API key required. Set 'elsevier_api_key' in config.yaml"
-            )
+            raise ValueError("Elsevier API key required. Set 'elsevier_api_key' in config.yaml")
 
         normalized_doi = normalize_doi(doi)
         if not normalized_doi:
@@ -186,9 +180,7 @@ class ElsevierClient(BaseClient):
             List of citing papers.
         """
         if not self.api_key:
-            raise ValueError(
-                "Elsevier API key required. Set 'elsevier_api_key' in config.yaml"
-            )
+            raise ValueError("Elsevier API key required. Set 'elsevier_api_key' in config.yaml")
 
         params: dict[str, Any] = {
             "query": f"refeid({scopus_id})",
@@ -237,9 +229,7 @@ class ElsevierClient(BaseClient):
             List of Author objects.
         """
         if not self.api_key:
-            raise ValueError(
-                "Elsevier API key required. Set 'elsevier_api_key' in config.yaml"
-            )
+            raise ValueError("Elsevier API key required. Set 'elsevier_api_key' in config.yaml")
 
         # Build Scopus author search query
         search_query = f"AUTHLAST({query})"
@@ -280,9 +270,7 @@ class ElsevierClient(BaseClient):
             Author object if found, None otherwise.
         """
         if not self.api_key:
-            raise ValueError(
-                "Elsevier API key required. Set 'elsevier_api_key' in config.yaml"
-            )
+            raise ValueError("Elsevier API key required. Set 'elsevier_api_key' in config.yaml")
 
         try:
             response = await self._get(
@@ -314,9 +302,7 @@ class ElsevierClient(BaseClient):
             List of papers by the author.
         """
         if not self.api_key:
-            raise ValueError(
-                "Elsevier API key required. Set 'elsevier_api_key' in config.yaml"
-            )
+            raise ValueError("Elsevier API key required. Set 'elsevier_api_key' in config.yaml")
 
         params: dict[str, Any] = {
             "query": f"AU-ID({author_id})",
@@ -365,9 +351,7 @@ class ElsevierClient(BaseClient):
             List of Institution objects.
         """
         if not self.api_key:
-            raise ValueError(
-                "Elsevier API key required. Set 'elsevier_api_key' in config.yaml"
-            )
+            raise ValueError("Elsevier API key required. Set 'elsevier_api_key' in config.yaml")
 
         search_query = f"AFFIL({query})"
         if kwargs.get("country"):
@@ -405,9 +389,7 @@ class ElsevierClient(BaseClient):
             Institution object if found, None otherwise.
         """
         if not self.api_key:
-            raise ValueError(
-                "Elsevier API key required. Set 'elsevier_api_key' in config.yaml"
-            )
+            raise ValueError("Elsevier API key required. Set 'elsevier_api_key' in config.yaml")
 
         try:
             response = await self._get(
@@ -628,9 +610,7 @@ class ElsevierClient(BaseClient):
         # Extract affiliations
         affiliations = []
         affil_history = (
-            data.get("author-profile", {})
-            .get("affiliation-history", {})
-            .get("affiliation", [])
+            data.get("author-profile", {}).get("affiliation-history", {}).get("affiliation", [])
         )
         if isinstance(affil_history, dict):
             affil_history = [affil_history]
@@ -649,9 +629,7 @@ class ElsevierClient(BaseClient):
             source=self.name,
             affiliations=affiliations,
             orcid=coredata.get("orcid"),
-            url=coredata.get("link", [{}])[0].get("@href")
-            if coredata.get("link")
-            else None,
+            url=coredata.get("link", [{}])[0].get("@href") if coredata.get("link") else None,
             paper_count=int(coredata.get("document-count", 0)) or None,
             citation_count=int(coredata.get("cited-by-count", 0)) or None,
             h_index=h_index,

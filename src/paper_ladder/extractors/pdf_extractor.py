@@ -144,9 +144,7 @@ class PDFExtractor(BaseExtractor):
             response.raise_for_status()
 
             # Create temp file with .pdf extension
-            temp_file = tempfile.NamedTemporaryFile(
-                suffix=".pdf", delete=False
-            )
+            temp_file = tempfile.NamedTemporaryFile(suffix=".pdf", delete=False)
             temp_file.write(response.content)
             temp_file.close()
 
@@ -198,8 +196,7 @@ class PDFExtractor(BaseExtractor):
             from mineru.cli.common import do_parse
         except ImportError as e:
             raise ImportError(
-                "MinerU is required for PDF extraction. "
-                "Install with: pip install mineru"
+                "MinerU is required for PDF extraction. Install with: pip install mineru"
             ) from e
 
         # Read PDF bytes
@@ -241,6 +238,7 @@ class PDFExtractor(BaseExtractor):
         content_list_path = output_dir / pdf_name / "auto" / f"{pdf_name}_content_list.json"
         if content_list_path.exists():
             import json
+
             content_list = json.loads(content_list_path.read_text(encoding="utf-8"))
             for item in content_list:
                 if isinstance(item, dict) and item.get("type") == "table":

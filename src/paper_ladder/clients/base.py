@@ -49,9 +49,7 @@ class BaseClient(ABC):
     def rate_limiter(self) -> RateLimiter:
         """Get or create the rate limiter."""
         if self._rate_limiter is None:
-            rate_limit = getattr(
-                self.config.rate_limits, self.name, 10
-            )
+            rate_limit = getattr(self.config.rate_limits, self.name, 10)
             self._rate_limiter = RateLimiter(rate_limit)
         return self._rate_limiter
 
