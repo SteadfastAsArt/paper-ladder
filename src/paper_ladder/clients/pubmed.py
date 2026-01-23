@@ -120,9 +120,9 @@ class PubMedClient(BaseClient):
         Returns:
             Paper object if found, None otherwise.
         """
-        # Check if it's a DOI
+        # Check if it's a DOI (DOIs start with "10.")
         normalized_doi = normalize_doi(identifier)
-        if normalized_doi:
+        if normalized_doi and normalized_doi.startswith("10."):
             # Search by DOI
             search_params = self._get_base_params()
             search_params["term"] = f"{normalized_doi}[doi]"
