@@ -8,41 +8,41 @@ Paper-Ladder is a Python library for academic paper search and content extractio
 
 ```mermaid
 graph TB
-    subgraph "User Interface"
-        CLI[CLI<br/>typer]
-        API[Python API<br/>paper_ladder]
+    subgraph UI[User Interface]
+        CLI[CLI - typer]
+        API[Python API]
     end
 
-    subgraph "Core Layer"
-        AGG[Aggregator<br/>Multi-source coordination]
-        CFG[Config<br/>YAML configuration]
+    subgraph Core[Core Layer]
+        AGG[Aggregator]
+        CFG[Config]
     end
 
-    subgraph "Client Layer"
-        BC[BaseClient<br/>Abstract interface]
+    subgraph Clients[Client Layer]
+        BC[BaseClient]
 
-        subgraph "Free APIs"
-            OA[OpenAlex<br/>100K/day]
-            CR[Crossref<br/>50 req/s]
-            PM[PubMed<br/>3-10 req/s]
+        subgraph Free[Free APIs]
+            OA[OpenAlex]
+            CR[Crossref]
+            PM[PubMed]
         end
 
-        subgraph "Auth Required"
-            SS[Semantic Scholar<br/>Optional key]
-            EL[Elsevier/Scopus<br/>API key]
-            GS[Google Scholar<br/>SerpAPI]
-            WOS[Web of Science<br/>Institutional]
+        subgraph Auth[Auth Required]
+            SS[Semantic Scholar]
+            EL[Elsevier]
+            GS[Google Scholar]
+            WOS[Web of Science]
         end
     end
 
-    subgraph "Extraction Layer"
+    subgraph Extract[Extraction Layer]
         BE[BaseExtractor]
-        PDF[PDFExtractor<br/>MinerU]
-        HTML[HTMLExtractor<br/>BeautifulSoup]
-        STR[StructuredExtractor<br/>Section parsing]
+        PDF[PDFExtractor]
+        HTML[HTMLExtractor]
+        STR[StructuredExtractor]
     end
 
-    subgraph "Data Models"
+    subgraph Models[Data Models]
         P[Paper]
         A[Author]
         I[Institution]
@@ -51,7 +51,7 @@ graph TB
         BS[BookStructure]
     end
 
-    subgraph "External Services"
+    subgraph External[External Services]
         API_OA[api.openalex.org]
         API_CR[api.crossref.org]
         API_SS[api.semanticscholar.org]
@@ -145,32 +145,31 @@ paper-ladder/
 ```mermaid
 flowchart TB
     subgraph Input
-        Q[User Query<br/>"machine learning"]
+        Q[User Query]
     end
 
-    subgraph "Aggregator Layer"
+    subgraph Aggregator[Aggregator Layer]
         AGG[Aggregator.search]
-        SRC[Source Selection<br/>openalex, crossref, semantic_scholar, pubmed, wos]
+        SRC[Source Selection]
     end
 
-    subgraph "Parallel Execution"
-        direction LR
-        T1[Task 1<br/>OpenAlex]
-        T2[Task 2<br/>Crossref]
-        T3[Task 3<br/>Semantic Scholar]
-        T4[Task 4<br/>PubMed]
-        T5[Task 5<br/>Web of Science]
+    subgraph Parallel[Parallel Execution]
+        T1[OpenAlex]
+        T2[Crossref]
+        T3[Semantic Scholar]
+        T4[PubMed]
+        T5[Web of Science]
     end
 
-    subgraph "Rate Limiting"
-        RL1[RateLimiter<br/>10 req/s]
-        RL2[RateLimiter<br/>50 req/s]
-        RL3[RateLimiter<br/>10 req/s]
-        RL4[RateLimiter<br/>10 req/s]
-        RL5[RateLimiter<br/>2 req/s]
+    subgraph RateLimit[Rate Limiting]
+        RL1[10 req/s]
+        RL2[50 req/s]
+        RL3[10 req/s]
+        RL4[10 req/s]
+        RL5[2 req/s]
     end
 
-    subgraph "External APIs"
+    subgraph APIs[External APIs]
         API1[api.openalex.org]
         API2[api.crossref.org]
         API3[api.semanticscholar.org]
@@ -178,21 +177,21 @@ flowchart TB
         API5[api.clarivate.com]
     end
 
-    subgraph "Response Processing"
-        P1[Parse JSON<br/>→ Paper objects]
-        P2[Parse JSON<br/>→ Paper objects]
-        P3[Parse JSON<br/>→ Paper objects]
-        P4[Parse XML<br/>→ Paper objects]
-        P5[Parse JSON<br/>→ Paper objects]
+    subgraph Process[Response Processing]
+        P1[Parse to Paper]
+        P2[Parse to Paper]
+        P3[Parse to Paper]
+        P4[Parse XML to Paper]
+        P5[Parse to Paper]
     end
 
-    subgraph "Result Aggregation"
-        MERGE[Round-Robin<br/>Interleaving]
-        DEDUP[Deduplication<br/>by DOI & Title]
+    subgraph Merge[Result Aggregation]
+        MERGE[Round-Robin Interleave]
+        DEDUP[Deduplicate by DOI/Title]
     end
 
     subgraph Output
-        SR[SearchResult<br/>papers, total, sources, errors]
+        SR[SearchResult]
     end
 
     Q --> AGG
@@ -215,31 +214,31 @@ flowchart TB
 ```mermaid
 flowchart TB
     subgraph Input
-        DOI["DOI: 10.1038/nature14539"]
+        DOI[DOI Input]
     end
 
-    subgraph "Normalization"
-        NORM[normalize_doi<br/>Remove URL prefixes<br/>Lowercase]
+    subgraph Normalize[Normalization]
+        NORM[normalize_doi]
     end
 
-    subgraph "Client Selection"
-        SEL{Try sources<br/>sequentially}
+    subgraph Select[Client Selection]
+        SEL{Try sources sequentially}
     end
 
-    subgraph "API Requests"
-        R1["OpenAlex<br/>GET /works/https://doi.org/..."]
-        R2["Crossref<br/>GET /works/10.1038/..."]
-        R3["Semantic Scholar<br/>GET /paper/DOI:..."]
-        R4["PubMed<br/>ESearch + EFetch"]
-        R5["Web of Science<br/>GET /query?usrQuery=DO=..."]
+    subgraph Requests[API Requests]
+        R1[OpenAlex API]
+        R2[Crossref API]
+        R3[Semantic Scholar API]
+        R4[PubMed ESearch + EFetch]
+        R5[Web of Science API]
     end
 
-    subgraph "Response Parsing"
-        PARSE[Parse API Response<br/>Extract: title, authors, abstract<br/>Normalize: DOI, year, journal<br/>Store: raw_data]
+    subgraph Parse[Response Parsing]
+        PARSE[Extract & Normalize Fields]
     end
 
     subgraph Output
-        PAPER["Paper Object<br/>title, authors, doi, year<br/>citations_count, source"]
+        PAPER[Paper Object]
     end
 
     DOI --> NORM
@@ -258,33 +257,33 @@ flowchart TB
 ```mermaid
 flowchart TB
     subgraph Input
-        DOI["DOI: 10.1038/nature14539<br/>--merge flag"]
+        DOI[DOI with --merge flag]
     end
 
-    subgraph "Parallel Queries"
+    subgraph Queries[Parallel Queries]
         Q1[OpenAlex.get_paper]
         Q2[Crossref.get_paper]
         Q3[SemanticScholar.get_paper]
         Q4[PubMed.get_paper]
     end
 
-    subgraph "Collected Papers"
-        P1["Paper from OpenAlex<br/>citations: 77,000"]
-        P2["Paper from Crossref<br/>references: 72"]
-        P3["Paper from S2<br/>citations: 162,000"]
-        P4["Paper from PubMed<br/>MeSH terms"]
+    subgraph Collected[Collected Papers]
+        P1[OpenAlex: citations 77K]
+        P2[Crossref: references 72]
+        P3[S2: citations 162K]
+        P4[PubMed: MeSH terms]
     end
 
-    subgraph "Merge Logic"
-        M1[Best abstract<br/>longest]
-        M2[Best authors<br/>most complete]
-        M3[Best citations<br/>highest count]
-        M4[Best PDF URL<br/>first available]
-        M5[Merged keywords<br/>union of all]
+    subgraph MergeLogic[Merge Logic]
+        M1[Best abstract - longest]
+        M2[Best authors - most complete]
+        M3[Best citations - highest]
+        M4[Best PDF URL - first available]
+        M5[Keywords - union of all]
     end
 
     subgraph Output
-        MERGED["Merged Paper<br/>Best data from all sources"]
+        MERGED[Merged Paper]
     end
 
     DOI --> Q1 & Q2 & Q3 & Q4
@@ -305,43 +304,43 @@ flowchart TB
 ```mermaid
 flowchart TB
     subgraph Input
-        PDF[PDF File<br/>paper.pdf]
-        URL[PDF URL<br/>https://...]
+        PDF[PDF File]
+        URL[PDF URL]
     end
 
-    subgraph "Download"
-        DL[Download to<br/>temp file]
+    subgraph Download
+        DL[Download to temp file]
     end
 
-    subgraph "MinerU Processing"
-        MINERU[MinerU do_parse<br/>backend=pipeline]
+    subgraph MinerU[MinerU Processing]
+        MINERU[do_parse with pipeline backend]
         MD[markdown output]
-        MJ[middle.json<br/>layout info]
-        CL[content_list.json<br/>content blocks]
-        IMG[images/<br/>figures as PNG/JPG]
+        MJ[middle.json]
+        CL[content_list.json]
+        IMG[images folder]
     end
 
-    subgraph "Content Parsing"
-        CB[Parse ContentBlocks<br/>type, content, level]
+    subgraph Parse[Content Parsing]
+        CB[Parse ContentBlocks]
         FIG[Extract Figures]
         TBL[Extract Tables]
     end
 
-    subgraph "Type Detection"
-        DET{Detect Type}
-        PAPER_CHECK["Has Abstract, Introduction<br/>Methods, Results, Discussion?"]
-        BOOK_CHECK["Has 'Chapter X' headers?<br/>Numbered sections 1.1, 2.3?<br/>> 50 pages?"]
+    subgraph Detect[Type Detection]
+        DET{Detect Document Type}
+        PAPER_CHECK[Has standard paper sections?]
+        BOOK_CHECK[Has chapter headers?]
     end
 
-    subgraph "Structure Building"
-        PS_BUILD[Build PaperStructure<br/>Match sections to patterns]
-        BS_BUILD[Build BookStructure<br/>Create chapter hierarchy]
+    subgraph Build[Structure Building]
+        PS_BUILD[Build PaperStructure]
+        BS_BUILD[Build BookStructure]
     end
 
     subgraph Output
-        EC[ExtractedContent<br/>markdown, metadata<br/>figures, tables]
-        PS[PaperStructure<br/>abstract, intro, methods<br/>results, discussion]
-        BS[BookStructure<br/>chapters hierarchy<br/>table of contents]
+        EC[ExtractedContent]
+        PS[PaperStructure]
+        BS[BookStructure]
     end
 
     PDF --> MINERU
@@ -362,40 +361,31 @@ flowchart TB
 
 ```mermaid
 flowchart LR
-    subgraph "Content Blocks"
-        B1["Title: Abstract"]
-        B2["Text: In this paper..."]
-        B3["Title: 1. Introduction"]
-        B4["Text: Machine learning..."]
-        B5["Title: 2. Methods"]
-        B6["Title: 3. Results"]
-        B7["Title: 4. Discussion"]
-        B8["Title: 5. Conclusion"]
-        B9["Title: References"]
+    subgraph Blocks[Content Blocks]
+        B1[Title: Abstract]
+        B2[Title: Introduction]
+        B3[Title: Methods]
+        B4[Title: Results]
+        B5[Title: Discussion]
+        B6[Title: Conclusion]
+        B7[Title: References]
     end
 
-    subgraph "Pattern Matching"
-        PM["PAPER_SECTION_PATTERNS<br/>abstract: r'^abstract'<br/>introduction: r'^1?\\.?\\s*introduction'<br/>methods: r'^2?\\.?\\s*(methods|methodology)'<br/>results: r'^3?\\.?\\s*results'<br/>discussion: r'^4?\\.?\\s*discussion'<br/>conclusion: r'^5?\\.?\\s*conclusion'<br/>references: r'^references'"]
+    subgraph Patterns[Pattern Matching]
+        PM[PAPER_SECTION_PATTERNS]
     end
 
-    subgraph "PaperStructure"
-        PS_ABS[".abstract"]
-        PS_INT[".introduction"]
-        PS_MET[".methods"]
-        PS_RES[".results"]
-        PS_DIS[".discussion"]
-        PS_CON[".conclusion"]
-        PS_REF[".references_text"]
+    subgraph Structure[PaperStructure]
+        PS_ABS[.abstract]
+        PS_INT[.introduction]
+        PS_MET[.methods]
+        PS_RES[.results]
+        PS_DIS[.discussion]
+        PS_CON[.conclusion]
+        PS_REF[.references_text]
     end
 
-    B1 & B2 --> PM
-    B3 & B4 --> PM
-    B5 --> PM
-    B6 --> PM
-    B7 --> PM
-    B8 --> PM
-    B9 --> PM
-
+    B1 & B2 & B3 & B4 & B5 & B6 & B7 --> PM
     PM --> PS_ABS & PS_INT & PS_MET & PS_RES & PS_DIS & PS_CON & PS_REF
 ```
 
@@ -422,20 +412,20 @@ sequenceDiagram
         AGG->>OA: search(query)
         OA->>RL: acquire()
         RL-->>OA: OK
-        OA->>OA: GET /works?search=...
-        OA-->>AGG: [Paper, Paper, ...]
+        OA->>OA: GET /works
+        OA-->>AGG: List of Papers
     and
         AGG->>CR: search(query)
         CR->>RL: acquire()
         RL-->>CR: OK
-        CR->>CR: GET /works?query=...
-        CR-->>AGG: [Paper, Paper, ...]
+        CR->>CR: GET /works
+        CR-->>AGG: List of Papers
     and
         AGG->>SS: search(query)
         SS->>RL: acquire()
         RL-->>SS: OK
-        SS->>SS: GET /paper/search?query=...
-        SS-->>AGG: [Paper, Paper, ...]
+        SS->>SS: GET /paper/search
+        SS-->>AGG: List of Papers
     end
 
     AGG->>AGG: Round-robin interleave
@@ -457,7 +447,7 @@ sequenceDiagram
 
     U->>CLI: extract paper.pdf
     CLI->>PE: extract_structured(path)
-    PE->>SE: extract(path, "auto")
+    PE->>SE: extract(path, auto)
 
     SE->>MU: do_parse(pdf_path)
     MU->>FS: Write middle.json
@@ -496,14 +486,14 @@ sequenceDiagram
     Note over RL: last_request = 0
 
     C->>RL: acquire()
-    RL->>RL: elapsed = now - last_request
+    RL->>RL: Calculate elapsed time
     alt elapsed >= min_interval
-        RL->>RL: last_request = now
-        RL-->>C: OK (immediate)
+        RL->>RL: Update last_request
+        RL-->>C: OK immediate
     else elapsed < min_interval
-        RL->>RL: sleep(min_interval - elapsed)
-        RL->>RL: last_request = now
-        RL-->>C: OK (after wait)
+        RL->>RL: sleep(remaining)
+        RL->>RL: Update last_request
+        RL-->>C: OK after wait
     end
     C->>API: HTTP Request
     API-->>C: Response
@@ -527,62 +517,60 @@ sequenceDiagram
 classDiagram
     class Paper {
         +str title
-        +list~str~ authors
-        +str|None abstract
-        +str|None doi
-        +int|None year
-        +str|None journal
-        +str|None url
-        +str|None pdf_url
+        +list authors
+        +str abstract
+        +str doi
+        +int year
+        +str journal
+        +str url
+        +str pdf_url
         +str source
-        +int|None citations_count
-        +int|None references_count
-        +bool|None open_access
-        +list~str~ keywords
+        +int citations_count
+        +int references_count
+        +bool open_access
+        +list keywords
         +dict raw_data
-        +__hash__() int
-        +__eq__(other) bool
     }
 
     class Author {
         +str name
-        +str|None source_id
-        +str|None source
-        +list~str~ affiliations
-        +str|None orcid
-        +str|None url
-        +int|None paper_count
-        +int|None citation_count
-        +int|None h_index
+        +str source_id
+        +str source
+        +list affiliations
+        +str orcid
+        +str url
+        +int paper_count
+        +int citation_count
+        +int h_index
         +dict raw_data
     }
 
     class Institution {
         +str name
-        +str|None source_id
-        +str|None source
-        +str|None country
-        +str|None type
-        +str|None url
-        +int|None paper_count
-        +int|None citation_count
+        +str source_id
+        +str source
+        +str country
+        +str type
+        +str url
+        +int paper_count
+        +int citation_count
         +dict raw_data
     }
 
     class SearchResult {
         +str query
-        +list~Paper~ papers
+        +list papers
         +int total_results
-        +list~str~ sources_queried
-        +dict~str,str~ errors
+        +list sources_queried
+        +dict errors
     }
 
     class ExtractedContent {
         +str markdown
         +dict metadata
-        +list~str~ figures
-        +list~str~ tables
-        +str|None source_url
+        +list figures
+        +list tables
+        +str source_url
         +str source_type
     }
 
@@ -599,61 +587,61 @@ classDiagram
         +str type
         +str content
         +int text_level
-        +int|None page_idx
-        +list|None bbox
+        +int page_idx
+        +list bbox
         +dict raw_data
     }
 
     class Section {
         +str title
         +int level
-        +list~ContentBlock~ blocks
-        +list~Section~ subsections
+        +list blocks
+        +list subsections
         +get_text() str
         +get_all_text() str
     }
 
     class DocumentStructure {
-        +str|None title
-        +list~Section~ sections
-        +list~ContentBlock~ all_blocks
-        +list~str~ figures
-        +list~str~ tables
+        +str title
+        +list sections
+        +list all_blocks
+        +list figures
+        +list tables
         +dict metadata
-        +str|None source_path
+        +str source_path
         +str document_type
-        +get_section(pattern) Section
-        +get_all_sections_flat() list
+        +get_section(pattern)
+        +get_all_sections_flat()
     }
 
     class PaperStructure {
-        +str|None abstract
-        +str|None introduction
-        +str|None methods
-        +str|None results
-        +str|None discussion
-        +str|None conclusion
-        +str|None references_text
-        +str|None acknowledgments
-        +list~str~ detected_authors
-        +list~str~ detected_affiliations
+        +str abstract
+        +str introduction
+        +str methods
+        +str results
+        +str discussion
+        +str conclusion
+        +str references_text
+        +str acknowledgments
+        +list detected_authors
+        +list detected_affiliations
     }
 
     class ChapterNode {
         +str title
         +int level
-        +int|None page_start
-        +str|None content
-        +list~ContentBlock~ blocks
-        +list~ChapterNode~ children
+        +int page_start
+        +str content
+        +list blocks
+        +list children
         +get_all_text() str
     }
 
     class BookStructure {
-        +list~ChapterNode~ chapters
-        +str|None toc
-        +get_chapter(pattern) ChapterNode
-        +get_all_chapters_flat() list
+        +list chapters
+        +str toc
+        +get_chapter(pattern)
+        +get_all_chapters_flat()
     }
 
     DocumentStructure <|-- PaperStructure
@@ -661,7 +649,6 @@ classDiagram
     Section "1" --> "*" ContentBlock
     Section "1" --> "*" Section : subsections
     DocumentStructure "1" --> "*" Section
-    DocumentStructure "1" --> "*" ContentBlock
     BookStructure "1" --> "*" ChapterNode
     ChapterNode "1" --> "*" ChapterNode : children
     ChapterNode "1" --> "*" ContentBlock
@@ -673,17 +660,17 @@ classDiagram
 
 ```mermaid
 graph LR
-    subgraph "Free APIs"
-        OA[OpenAlex<br/>✓ Full features<br/>✓ Institutions<br/>100K/day]
-        CR[Crossref<br/>✓ Journal/Funder<br/>✗ Citations<br/>50 req/s]
-        PM[PubMed<br/>✓ MeSH terms<br/>✓ Related papers<br/>3-10 req/s]
+    subgraph Free[Free APIs]
+        OA[OpenAlex - Full features, Institutions]
+        CR[Crossref - Journal/Funder metadata]
+        PM[PubMed - MeSH terms, Related papers]
     end
 
-    subgraph "Auth Required"
-        SS[Semantic Scholar<br/>✓ Recommendations<br/>✓ Batch lookup<br/>Optional key]
-        EL[Elsevier<br/>✓ Full-text<br/>✓ Institutions<br/>API key]
-        GS[Google Scholar<br/>✓ Broadest coverage<br/>✓ Patents/Books<br/>Paid]
-        WOS[Web of Science<br/>✓ Citation analysis<br/>✓ Impact metrics<br/>Institutional]
+    subgraph Auth[Auth Required]
+        SS[Semantic Scholar - Recommendations, Batch]
+        EL[Elsevier - Full-text, Institutions]
+        GS[Google Scholar - Broadest coverage]
+        WOS[Web of Science - Citation analysis]
     end
 ```
 
@@ -716,16 +703,16 @@ graph LR
 
 ```mermaid
 flowchart TB
-    subgraph "Configuration"
-        CFG["config.yaml<br/>rate_limits:<br/>  openalex: 10<br/>  crossref: 50<br/>  pubmed: 10<br/>  wos: 2"]
+    subgraph Config[Configuration]
+        CFG[config.yaml rate_limits]
     end
 
-    subgraph "Client Initialization"
+    subgraph Init[Client Initialization]
         BC[BaseClient.__init__]
-        RL_CREATE["Create RateLimiter<br/>min_interval = 1/rate"]
+        RL_CREATE[Create RateLimiter]
     end
 
-    subgraph "Request Flow"
+    subgraph Request[Request Flow]
         REQ[client._get or _post]
         ACQ[rate_limiter.acquire]
         LOCK[asyncio.Lock]
@@ -749,15 +736,15 @@ flowchart TB
 
 ```mermaid
 flowchart TB
-    subgraph "Request"
+    subgraph Request
         REQ[API Request]
     end
 
-    subgraph "Error Detection"
+    subgraph Check[Error Detection]
         CHK{Response Status}
     end
 
-    subgraph "Error Types"
+    subgraph Errors[Error Types]
         E200[200 OK]
         E429[429 Too Many Requests]
         E401[401 Unauthorized]
@@ -766,15 +753,15 @@ flowchart TB
         ENET[Network Error]
     end
 
-    subgraph "Handling"
+    subgraph Handle[Handling]
         PARSE[Parse Response]
-        RETRY[Wait & Retry]
+        RETRY[Wait and Retry]
         LOG_ERR[Log to errors dict]
         RETURN_NONE[Return None]
     end
 
-    subgraph "Aggregator Result"
-        SR["SearchResult<br/>papers: [...valid results...]<br/>errors: {source: error_msg}"]
+    subgraph Result[Aggregator Result]
+        SR[SearchResult with errors]
     end
 
     REQ --> CHK
@@ -841,20 +828,20 @@ proxy:
 
 ```mermaid
 flowchart LR
-    subgraph "Step 1: Create Client"
-        F1["clients/new_source.py<br/>class NewSourceClient(BaseClient)"]
+    subgraph Step1[Step 1: Create Client]
+        F1[clients/new_source.py]
     end
 
-    subgraph "Step 2: Implement Methods"
-        F2["search(query, limit, offset)<br/>get_paper(identifier)<br/>_parse_paper(data)"]
+    subgraph Step2[Step 2: Implement Methods]
+        F2[search, get_paper, _parse_paper]
     end
 
-    subgraph "Step 3: Register"
-        F3["clients/__init__.py<br/>CLIENTS['new_source'] = NewSourceClient"]
+    subgraph Step3[Step 3: Register]
+        F3[clients/__init__.py]
     end
 
-    subgraph "Step 4: Configure"
-        F4["config.py<br/>new_source: float = 10"]
+    subgraph Step4[Step 4: Configure]
+        F4[config.py rate_limits]
     end
 
     F1 --> F2 --> F3 --> F4
