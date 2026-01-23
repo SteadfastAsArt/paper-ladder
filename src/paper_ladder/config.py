@@ -37,6 +37,7 @@ class Config(BaseModel):
     semantic_scholar_api_key: str | None = None
     pubmed_api_key: str | None = None  # Optional, for higher rate limits (10 req/s vs 3 req/s)
     wos_api_key: str | None = None  # Required for Web of Science API
+    openalex_api_key: str | None = None  # Free API key for 100k credits/day
 
     # Proxy settings
     proxy: ProxyConfig | None = None

@@ -5,10 +5,18 @@ description = "Academic paper search and content extraction library"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.10"
-authors = [
-    { name = "Andrian Lee" }
+authors = [{ name = "Andrian Lee" }]
+keywords = [
+    "academic",
+    "crossref",
+    "extraction",
+    "openalex",
+    "papers",
+    "pdf",
+    "pubmed",
+    "search",
+    "semantic-scholar",
 ]
-keywords = ["academic", "papers", "search", "openalex", "semantic-scholar", "pdf", "extraction"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
@@ -18,33 +26,37 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Topic :: Scientific/Engineering",
+    "Topic :: Text Processing :: Markup :: Markdown",
+    "Typing :: Typed",
 ]
 dependencies = [
-    "httpx>=0.27",
-    "pydantic>=2.0",
-    "google-search-results>=2.4",
-    "mineru>=2.7",
     "beautifulsoup4>=4.12",
+    "google-search-results>=2.4",
+    "httpx>=0.27",
     "lxml>=5.0",
-    "typer>=0.12",
+    "mineru>=2.7",
+    "pydantic>=2.0",
     "pyyaml>=6.0",
+    "typer>=0.12",
 ]
-
-[project.urls]
-Homepage = "https://github.com/SteadfastAsArt/paper-ladder"
-Repository = "https://github.com/SteadfastAsArt/paper-ladder"
-Issues = "https://github.com/SteadfastAsArt/paper-ladder/issues"
 
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.23",
+    "pytest-cov>=4.0",
     "ruff>=0.4",
 ]
 
 [project.scripts]
 paper-ladder = "paper_ladder.cli:app"
+
+[project.urls]
+Homepage = "https://github.com/SteadfastAsArt/paper-ladder"
+Repository = "https://github.com/SteadfastAsArt/paper-ladder"
+Issues = "https://github.com/SteadfastAsArt/paper-ladder/issues"
 
 [build-system]
 requires = ["hatchling"]
@@ -56,10 +68,47 @@ packages = ["src/paper_ladder"]
 [tool.ruff]
 line-length = 100
 target-version = "py310"
+src = ["src"]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "N", "W", "UP"]
+select = [
+    "E",      # pycodestyle errors
+    "F",      # pyflakes
+    "I",      # isort
+    "N",      # pep8-naming
+    "W",      # pycodestyle warnings
+    "UP",     # pyupgrade
+    "B",      # flake8-bugbear
+    "C4",     # flake8-comprehensions
+    "PIE",    # flake8-pie
+    "RUF",    # ruff-specific rules
+    "SIM",    # flake8-simplify
+    "TCH",    # flake8-type-checking
+]
+ignore = [
+    "E501",   # line too long (handled by formatter)
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["paper_ladder"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
 testpaths = ["tests"]
+addopts = "-v --tb=short"
+
+[tool.coverage.run]
+source = ["src/paper_ladder"]
+branch = true
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+]

@@ -10,9 +10,12 @@ API Documentation: https://docs.openalex.org/
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from paper_ladder.clients.base import BaseClient
+
+if TYPE_CHECKING:
+    import httpx
 from paper_ladder.models import Author, Institution, Paper
 from paper_ladder.utils import clean_html_text, normalize_doi
 
@@ -21,13 +24,23 @@ class OpenAlexClient(BaseClient):
     """Client for the OpenAlex API.
 
     OpenAlex is a free, open catalog of the world's scholarly works.
-    Rate limit: 100,000 requests/day, polite pool with email in User-Agent.
+    Rate limit: 100k credits/day with free API key, 100 credits/day without.
 
     API docs: https://docs.openalex.org/
     """
 
     name = "openalex"
     base_url = "https://api.openalex.org"
+
+    async def _get(self, url: str, **kwargs: object) -> "httpx.Response":
+        """Make a rate-limited GET request with API key."""
+        # Add API key to params if configured
+        if self.config.openalex_api_key:
+            params = kwargs.get("params", {})
+            if isinstance(params, dict):
+                params["api_key"] = self.config.openalex_api_key
+                kwargs["params"] = params
+        return await self._request("GET", url, **kwargs)
 
     # =========================================================================
     # Works (Papers)

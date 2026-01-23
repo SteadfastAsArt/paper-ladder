@@ -2,6 +2,7 @@
 # Copy this file to config.yaml and fill in your API keys
 
 # API Keys
+openalex_api_key: ""  # Highly recommended! Free key for 100k credits/day. Get at openalex.org/settings/api
 elsevier_api_key: ""  # Required for Scopus/ScienceDirect access
 serpapi_api_key: ""   # Required for Google Scholar (via SerpAPI)
 semantic_scholar_api_key: ""  # Optional, for higher rate limits (1 req/sec vs 100/5min)
