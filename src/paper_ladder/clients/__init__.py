@@ -5,7 +5,9 @@ from paper_ladder.clients.crossref import CrossrefClient
 from paper_ladder.clients.elsevier import ElsevierClient
 from paper_ladder.clients.google_scholar import GoogleScholarClient
 from paper_ladder.clients.openalex import OpenAlexClient
+from paper_ladder.clients.pubmed import PubMedClient
 from paper_ladder.clients.semantic_scholar import SemanticScholarClient
+from paper_ladder.clients.wos import WebOfScienceClient
 
 __all__ = [
     "BaseClient",
@@ -14,6 +16,8 @@ __all__ = [
     "ElsevierClient",
     "GoogleScholarClient",
     "CrossrefClient",
+    "PubMedClient",
+    "WebOfScienceClient",
     "get_client",
     "CLIENTS",
 ]
@@ -25,6 +29,8 @@ CLIENTS: dict[str, type[BaseClient]] = {
     "elsevier": ElsevierClient,
     "google_scholar": GoogleScholarClient,
     "crossref": CrossrefClient,
+    "pubmed": PubMedClient,
+    "wos": WebOfScienceClient,
 }
 
 

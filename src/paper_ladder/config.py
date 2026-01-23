@@ -24,6 +24,8 @@ class RateLimits(BaseModel):
     elsevier: float = 5
     google_scholar: float = 1
     crossref: float = 50  # Polite pool allows higher rates
+    pubmed: float = 3  # 3 req/s without key, 10 req/s with key
+    wos: float = 2  # 2 req/s per Clarivate guidelines
 
 
 class Config(BaseModel):
@@ -33,6 +35,8 @@ class Config(BaseModel):
     elsevier_api_key: str | None = None
     serpapi_api_key: str | None = None
     semantic_scholar_api_key: str | None = None
+    pubmed_api_key: str | None = None  # Optional, for higher rate limits (10 req/s vs 3 req/s)
+    wos_api_key: str | None = None  # Required for Web of Science API
 
     # Proxy settings
     proxy: ProxyConfig | None = None

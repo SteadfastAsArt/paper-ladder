@@ -5,6 +5,8 @@
 elsevier_api_key: ""  # Required for Scopus/ScienceDirect access
 serpapi_api_key: ""   # Required for Google Scholar (via SerpAPI)
 semantic_scholar_api_key: ""  # Optional, for higher rate limits (1 req/sec vs 100/5min)
+pubmed_api_key: ""  # Optional, for higher rate limits (10 req/s vs 3 req/s). Get from NCBI account settings.
+wos_api_key: ""  # Required for Web of Science. Get from developer.clarivate.com with institutional subscription.
 
 # Proxy settings (optional)
 # proxy:
@@ -26,6 +28,9 @@ rate_limits:
   semantic_scholar: 10
   elsevier: 5
   google_scholar: 1
+  crossref: 50
+  pubmed: 3  # 3 without key, 10 with key
+  wos: 2
 
 # Output settings
 output_dir: "./output"

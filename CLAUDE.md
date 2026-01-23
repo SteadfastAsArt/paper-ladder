@@ -278,6 +278,64 @@ A chapter/section in book structure:
 
 **Note**: Crossref does not support citation lookup (finding papers that cite a given DOI). Use OpenAlex or Semantic Scholar for citation data.
 
+### 6. PubMed
+
+- **Documentation**: https://www.ncbi.nlm.nih.gov/books/NBK25497/
+- **E-utilities Overview**: https://www.ncbi.nlm.nih.gov/books/NBK25500/
+- **ESearch**: https://www.ncbi.nlm.nih.gov/books/NBK25499/#chapter4.ESearch
+- **EFetch**: https://www.ncbi.nlm.nih.gov/books/NBK25499/#chapter4.EFetch
+- **ELink**: https://www.ncbi.nlm.nih.gov/books/NBK25499/#chapter4.ELink
+- **Get API Key**: https://www.ncbi.nlm.nih.gov/account/settings/
+
+**Key Features**:
+- Free access to 36M+ biomedical citations
+- API key optional (for higher rate limits)
+- MeSH (Medical Subject Headings) indexing
+- PMC full-text links for open access articles
+- Related articles algorithm
+
+**Base URL**: `https://eutils.ncbi.nlm.nih.gov/entrez/eutils`
+
+**Param for auth**: `api_key=YOUR_KEY` (optional)
+
+**Implemented Methods**:
+- `search(query, limit, offset, **filters)` - Search papers (year, from_year, until_year, author, journal, mesh, article_type, sort)
+- `get_paper(identifier)` - Get paper by PMID or DOI
+- `get_paper_citations(pmid, limit, offset)` - Get citing papers (via PMC)
+- `get_paper_references(pmid, limit, offset)` - Get referenced papers
+- `get_related_papers(pmid, limit)` - Get related papers using PubMed's algorithm
+- `search_authors(query, limit, offset, **filters)` - Search authors (affiliation)
+- `get_author_papers(author_name, limit, offset)` - Get papers by author
+
+### 7. Web of Science
+
+- **Developer Portal**: https://developer.clarivate.com/apis
+- **API Expanded**: https://developer.clarivate.com/apis/wos
+- **API Starter**: https://developer.clarivate.com/apis/wos-starter (free, limited)
+- **Swagger UI**: https://api.clarivate.com/swagger-ui/
+
+**Key Features**:
+- Comprehensive citation index (science, social science, arts, humanities)
+- API key required (institutional subscription)
+- Times Cited counts
+- Related records feature
+- Multiple database editions (SCI, SSCI, AHCI, etc.)
+
+**Base URL**: `https://api.clarivate.com/api/wos`
+
+**Header for auth**: `X-ApiKey: YOUR_KEY`
+
+**Implemented Methods**:
+- `search(query, limit, offset, **filters)` - Search papers (year, from_year, until_year, database, edition, doc_type, sort)
+- `get_paper(identifier)` - Get paper by DOI or WoS UID
+- `get_paper_citations(paper_id, limit, offset)` - Get citing papers
+- `get_paper_references(paper_id, limit, offset)` - Get referenced papers
+- `get_related_papers(paper_id, limit)` - Get related papers
+- `search_authors(query, limit, offset, **filters)` - Search authors (organization)
+- `get_author_papers(author_name, limit, offset)` - Get papers by author
+
+**Note**: WoS Expanded API requires institutional subscription. The free Starter API has limited features (no citation counts, 50 req/day).
+
 ---
 
 ## Configuration
@@ -289,6 +347,8 @@ Copy `config.example.yaml` to `config.yaml` and add your API keys:
 elsevier_api_key: "your-key"           # Required for Elsevier/Scopus
 serpapi_api_key: "your-key"            # Required for Google Scholar
 semantic_scholar_api_key: "your-key"   # Optional, for higher rate limits
+pubmed_api_key: "your-key"             # Optional, for higher rate limits (10 req/s vs 3 req/s)
+wos_api_key: "your-key"                # Required for Web of Science (institutional subscription)
 
 # Default sources (in order of preference)
 default_sources:
@@ -303,6 +363,8 @@ rate_limits:
   crossref: 50
   elsevier: 5
   google_scholar: 1
+  pubmed: 3                 # 3 without key, 10 with key
+  wos: 2
 ```
 
 ---
@@ -414,25 +476,25 @@ asyncio.run(test())
 
 ### Feature Comparison
 
-| Feature                 | OpenAlex | Semantic Scholar | Crossref | Elsevier | Google Scholar |
-|-------------------------|:--------:|:----------------:|:--------:|:--------:|:--------------:|
-| search()                |    ✓     |        ✓         |    ✓     |    ✓     |       ✓        |
-| get_paper()             |    ✓     |        ✓         |    ✓     |    ✓     |       ✓        |
-| get_paper_citations()   |    ✓     |        ✓         |    ✗     |    ✓     |       ✓        |
-| get_paper_references()  |    ✓     |        ✓         |    ✓     |    ✗     |       ✗        |
-| search_authors()        |    ✓     |        ✓         |    ✗     |    ✓     |       ✓        |
-| get_author()            |    ✓     |        ✓         |    ✗     |    ✓     |       ✓        |
-| get_author_papers()     |    ✓     |        ✓         |    ✗     |    ✓     |       ✓        |
-| search_institutions()   |    ✓     |        ✗         |    ✗     |    ✓     |       ✗        |
-| get_institution()       |    ✓     |        ✗         |    ✗     |    ✓     |       ✗        |
-| get_journal()           |    ✗     |        ✗         |    ✓     |    ✗     |       ✗        |
-| get_journal_works()     |    ✗     |        ✗         |    ✓     |    ✗     |       ✗        |
-| get_funder()            |    ✗     |        ✗         |    ✓     |    ✗     |       ✗        |
-| get_funder_works()      |    ✗     |        ✗         |    ✓     |    ✗     |       ✗        |
-| get_recommendations()   |    ✗     |        ✓         |    ✗     |    ✗     |       ✗        |
-| batch operations        |    ✗     |        ✓         |    ✗     |    ✗     |       ✗        |
-| **Requires API Key**    |    ✗     |      Optional    |    ✗     |    ✓     |       ✓        |
-| **Free**                |    ✓     |        ✓         |    ✓     |    ✗     |       ✗        |
+| Feature                 | OpenAlex | Semantic Scholar | Crossref | Elsevier | Google Scholar | PubMed | Web of Science |
+|-------------------------|:--------:|:----------------:|:--------:|:--------:|:--------------:|:------:|:--------------:|
+| search()                |    ✓     |        ✓         |    ✓     |    ✓     |       ✓        |   ✓    |       ✓        |
+| get_paper()             |    ✓     |        ✓         |    ✓     |    ✓     |       ✓        |   ✓    |       ✓        |
+| get_paper_citations()   |    ✓     |        ✓         |    ✗     |    ✓     |       ✓        |   ✓    |       ✓        |
+| get_paper_references()  |    ✓     |        ✓         |    ✓     |    ✗     |       ✗        |   ✓    |       ✓        |
+| search_authors()        |    ✓     |        ✓         |    ✗     |    ✓     |       ✓        |   ✓    |       ✓        |
+| get_author()            |    ✓     |        ✓         |    ✗     |    ✓     |       ✓        |   ✗    |       ✗        |
+| get_author_papers()     |    ✓     |        ✓         |    ✗     |    ✓     |       ✓        |   ✓    |       ✓        |
+| search_institutions()   |    ✓     |        ✗         |    ✗     |    ✓     |       ✗        |   ✗    |       ✗        |
+| get_institution()       |    ✓     |        ✗         |    ✗     |    ✓     |       ✗        |   ✗    |       ✗        |
+| get_journal()           |    ✗     |        ✗         |    ✓     |    ✗     |       ✗        |   ✗    |       ✗        |
+| get_journal_works()     |    ✗     |        ✗         |    ✓     |    ✗     |       ✗        |   ✗    |       ✗        |
+| get_funder()            |    ✗     |        ✗         |    ✓     |    ✗     |       ✗        |   ✗    |       ✗        |
+| get_funder_works()      |    ✗     |        ✗         |    ✓     |    ✗     |       ✗        |   ✗    |       ✗        |
+| get_recommendations()   |    ✗     |        ✓         |    ✗     |    ✗     |       ✗        |   ✓    |       ✓        |
+| batch operations        |    ✗     |        ✓         |    ✗     |    ✗     |       ✗        |   ✗    |       ✗        |
+| **Requires API Key**    |    ✗     |      Optional    |    ✗     |    ✓     |       ✓        | Optional |       ✓        |
+| **Free**                |    ✓     |        ✓         |    ✓     |    ✗     |       ✗        |   ✓    |       ✗        |
 
 ### Rate Limits
 
@@ -443,18 +505,22 @@ asyncio.run(test())
 | Crossref         | No hard limit         | N/A (no key needed)   | 50 req/s        |
 | Elsevier/Scopus  | Key required          | 20,000/week (~2/s)    | 5 req/s         |
 | Google Scholar   | Key required          | ~$0.015/search        | 1 req/s         |
+| PubMed           | 3 req/s               | 10 req/s              | 3 req/s         |
+| Web of Science   | Key required          | 2 req/s, 200 req/day  | 2 req/s         |
 
 ### Single Request Return Limits
 
-| Engine           | Method                    | Code Limit       | API Max  |
-|------------------|---------------------------|------------------|----------|
-| OpenAlex         | search()                  | min(limit, 200)  | 200      |
-| Semantic Scholar | search()                  | min(limit, 100)  | 100      |
-| Semantic Scholar | get_paper_citations()     | min(limit, 1000) | 1000     |
-| Semantic Scholar | get_papers_batch()        | Fixed 500        | 500      |
-| Crossref         | search()                  | min(limit, 1000) | 1000     |
-| Elsevier/Scopus  | search()                  | min(limit, 25)   | 200*     |
-| Google Scholar   | search()                  | No hard limit    | 20       |
+| Engine           | Method                    | Code Limit        | API Max  |
+|------------------|---------------------------|-------------------|----------|
+| OpenAlex         | search()                  | min(limit, 200)   | 200      |
+| Semantic Scholar | search()                  | min(limit, 100)   | 100      |
+| Semantic Scholar | get_paper_citations()     | min(limit, 1000)  | 1000     |
+| Semantic Scholar | get_papers_batch()        | Fixed 500         | 500      |
+| Crossref         | search()                  | min(limit, 1000)  | 1000     |
+| Elsevier/Scopus  | search()                  | min(limit, 25)    | 200*     |
+| Google Scholar   | search()                  | No hard limit     | 20       |
+| PubMed           | search()                  | min(limit, 10000) | 10000    |
+| Web of Science   | search()                  | min(limit, 100)   | 100      |
 
 *Elsevier API supports up to 200, but code limits to 25 for safety.
 
@@ -477,6 +543,8 @@ Same paper "Deep Learning" (LeCun et al. 2015, DOI: 10.1038/nature14539):
 | Crossref         | DOI authority, journal/funder metadata, 150M+ records |
 | Elsevier         | Commercial database, full-text access (subscription)  |
 | Google Scholar   | Broadest coverage (books, patents, conferences)       |
+| PubMed           | Biomedical/life sciences, MeSH indexing, free access  |
+| Web of Science   | Citation analysis, impact metrics, multi-disciplinary |
 
 ---
 
