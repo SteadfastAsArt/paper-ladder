@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+import logging
+import os
 from pathlib import Path
 from typing import Any
 
 import yaml
 from pydantic import BaseModel, Field
+
+logger = logging.getLogger(__name__)
 
 
 class ProxyConfig(BaseModel):
@@ -79,28 +83,59 @@ class Config(BaseModel):
 _config: Config | None = None
 
 
+def find_config_file() -> Path | None:
+    """Find configuration file by searching multiple locations.
+
+    Search order (first found wins):
+    1. PAPER_LADDER_CONFIG environment variable
+    2. Current working directory: ./config.yaml
+    3. User home directory: ~/.paper-ladder/config.yaml
+
+    Returns:
+        Path to config file if found, None otherwise.
+    """
+    # 1. Environment variable
+    env_path = os.environ.get("PAPER_LADDER_CONFIG")
+    if env_path:
+        path = Path(env_path).expanduser()
+        if path.exists():
+            return path
+        logger.warning(f"PAPER_LADDER_CONFIG path does not exist: {env_path}")
+
+    # 2. Current working directory
+    cwd_config = Path("config.yaml")
+    if cwd_config.exists():
+        return cwd_config.resolve()
+
+    # 3. User home directory
+    home_config = Path.home() / ".paper-ladder" / "config.yaml"
+    if home_config.exists():
+        return home_config
+
+    return None
+
+
 def load_config(config_path: str | Path | None = None) -> Config:
     """Load configuration from YAML file.
 
     Args:
-        config_path: Path to config file. If None, looks for config.yaml
-                    in current directory.
+        config_path: Path to config file. If None, searches for config.yaml
+                    in multiple locations (see find_config_file).
 
     Returns:
         Config object with loaded settings.
     """
     global _config
 
-    if config_path is None:
-        config_path = Path("config.yaml")
-    else:
-        config_path = Path(config_path)
+    config_path = Path(config_path).expanduser() if config_path is not None else find_config_file()
 
-    if config_path.exists():
+    if config_path is not None and config_path.exists():
+        logger.debug(f"Loading configuration from: {config_path}")
         with open(config_path) as f:
             data: dict[str, Any] = yaml.safe_load(f) or {}
         _config = Config(**data)
     else:
+        logger.debug("No configuration file found, using defaults")
         _config = Config()
 
     return _config
