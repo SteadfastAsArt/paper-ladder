@@ -19,19 +19,21 @@ A Python library for searching academic paper metadata from multiple APIs and ex
 
 | Source | API Key | Rate Limit | Papers | Authors | Institutions | Citations | Unique Features |
 |--------|---------|------------|--------|---------|--------------|-----------|-----------------|
-| **OpenAlex** | Not required | 100k/day | ✓ | ✓ | ✓ | ✓ | Free, comprehensive |
+| **OpenAlex** | Optional | 100k/day | ✓ | ✓ | ✓ | ✓ | Free, comprehensive |
 | **Semantic Scholar** | Optional | 100/5min | ✓ | ✓ | - | ✓ | Recommendations, arXiv |
 | **Crossref** | Not required | ~50/sec | ✓ | - | - | - | Journals, Funders, 150M+ DOIs |
+| **PubMed** | Optional | 3-10/sec | ✓ | ✓ | - | ✓ | Biomedical, MeSH terms |
+| **Web of Science** | Required | ~2/sec | ✓ | ✓ | - | ✓ | Citation analysis, impact metrics |
 | **Elsevier (Scopus)** | Required | ~2/sec | ✓ | ✓ | ✓ | ✓ | Full-text access |
 | **Google Scholar** | Required (SerpAPI) | $0.015/call | ✓ | ✓ | - | ✓ | Broadest coverage |
 
 ### Comparison
 
-| Metric | OpenAlex | Semantic Scholar | Crossref | Elsevier | Google Scholar |
-|--------|----------|------------------|----------|----------|----------------|
-| **Max per request** | 200 | 100 | 1,000 | 25 | 20 |
-| **Max offset** | 10,000 | 10,000 | cursor | 5,000 | ~100 |
-| **Free** | ✓ | ✓ | ✓ | ✗ | ✗ |
+| Metric | OpenAlex | Semantic Scholar | Crossref | PubMed | Web of Science | Elsevier | Google Scholar |
+|--------|----------|------------------|----------|--------|----------------|----------|----------------|
+| **Max per request** | 200 | 100 | 1,000 | 10,000 | 100 | 25 | 20 |
+| **Max offset** | 10,000 | 10,000 | cursor | 10,000 | 100,000 | 5,000 | ~100 |
+| **Free** | ✓ | ✓ | ✓ | ✓ | ✗ | ✗ | ✗ |
 
 **Citation counts for the same paper** (Deep Learning, LeCun 2015):
 - Semantic Scholar: ~162,000 (includes preprints)
@@ -61,26 +63,28 @@ cp config.example.yaml config.yaml
 Edit `config.yaml` with your API keys:
 
 ```yaml
-# Optional - for Elsevier/Scopus access
-elsevier_api_key: "your-key"
-
-# Optional - for Google Scholar via SerpAPI
-serpapi_api_key: "your-key"
-
-# Optional - for higher Semantic Scholar rate limits
-semantic_scholar_api_key: "your-key"
+# API Keys
+openalex_api_key: "your-key"           # Recommended for 100k credits/day (free at openalex.org)
+semantic_scholar_api_key: "your-key"   # Optional, for higher rate limits (1 req/s)
+pubmed_api_key: "your-key"             # Optional, for higher rate limits (10 req/s vs 3 req/s)
+wos_api_key: "your-key"                # Required for Web of Science (institutional subscription)
+elsevier_api_key: "your-key"           # Required for Elsevier/Scopus access
+serpapi_api_key: "your-key"            # Required for Google Scholar via SerpAPI
 
 # Default sources (free, no API key needed)
 default_sources:
   - openalex
   - crossref
   - semantic_scholar
+  - pubmed
 
 # Rate limits (requests per second)
 rate_limits:
   openalex: 10
   semantic_scholar: 10  # Use 0.3 without API key
   crossref: 50
+  pubmed: 10            # 3 without API key, 10 with API key
+  wos: 2
   elsevier: 5
   google_scholar: 1
 ```
@@ -324,6 +328,74 @@ async with CrossrefClient() as client:
     # Search funded papers
     papers = await client.get_funder_works("501100001809", query="deep learning")
 ```
+
+### PubMed (Free, Optional API Key)
+
+Premier biomedical literature database with MeSH indexing.
+
+```python
+from paper_ladder.clients import PubMedClient
+
+async with PubMedClient() as client:
+    # Paper search with filters
+    papers = await client.search(
+        "CRISPR gene therapy",
+        limit=20,
+        year=2024,                    # Filter by year
+        sort="relevance"              # or "pub_date"
+    )
+
+    # Get by PMID or DOI
+    paper = await client.get_paper("26017442")  # PMID
+    paper = await client.get_paper("10.1038/nature14539")  # DOI
+
+    # Citations and references
+    citations = await client.get_paper_citations(pmid, limit=50)
+    references = await client.get_paper_references(pmid, limit=50)
+
+    # Related papers (using PubMed's similarity algorithm)
+    related = await client.get_related_papers(pmid, limit=20)
+
+    # Author search
+    authors = await client.search_authors("Doudna JA")
+    papers = await client.get_author_papers("Doudna JA", limit=20)
+```
+
+**Note**: API key is optional but recommended for higher rate limits (10 req/s vs 3 req/s). Get from NCBI account settings.
+
+### Web of Science (API Key Required)
+
+Premier citation index with comprehensive impact metrics.
+
+```python
+from paper_ladder.clients import WebOfScienceClient
+
+async with WebOfScienceClient() as client:
+    # Paper search with filters
+    papers = await client.search(
+        "machine learning healthcare",
+        limit=20,
+        year=2024,                    # Filter by year
+        document_type="Article"       # Article, Review, etc.
+    )
+
+    # Get by DOI or WoS UID
+    paper = await client.get_paper("10.1038/nature14539")
+    paper = await client.get_paper("WOS:000123456789")
+
+    # Citations and references
+    citations = await client.get_paper_citations(uid, limit=50)
+    references = await client.get_paper_references(uid, limit=50)
+
+    # Related papers
+    related = await client.get_related_papers(uid, limit=20)
+
+    # Author search
+    authors = await client.search_authors("Hinton G")
+    papers = await client.get_author_papers("Hinton G", limit=20)
+```
+
+**Note**: Requires institutional subscription. Get API key from developer.clarivate.com.
 
 **Common Funder IDs**:
 | Funder | ID | Papers |
