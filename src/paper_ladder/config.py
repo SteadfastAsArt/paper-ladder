@@ -39,6 +39,9 @@ class Config(BaseModel):
     wos_api_key: str | None = None  # Required for Web of Science API
     openalex_api_key: str | None = None  # Free API key for 100k credits/day
 
+    # Crossref polite pool email (highly recommended for better rate limits)
+    crossref_mailto: str | None = None
+
     # Proxy settings
     proxy: ProxyConfig | None = None
 

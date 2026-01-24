@@ -9,6 +9,9 @@ semantic_scholar_api_key: ""  # Optional, for higher rate limits (1 req/sec vs 1
 pubmed_api_key: ""  # Optional, for higher rate limits (10 req/s vs 3 req/s). Get from NCBI account settings.
 wos_api_key: ""  # Required for Web of Science. Get from developer.clarivate.com with institutional subscription.
 
+# Crossref polite pool email - HIGHLY RECOMMENDED for better rate limits
+crossref_mailto: ""  # Your email for Crossref polite pool (avoids rate limiting)
+
 # Proxy settings (optional)
 # proxy:
 #   http: "http://127.0.0.1:7890"

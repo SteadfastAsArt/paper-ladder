@@ -11,6 +11,7 @@ from __future__ import annotations
 from typing import Any
 
 from paper_ladder.clients.base import BaseClient
+from paper_ladder.config import get_config
 from paper_ladder.models import Paper
 from paper_ladder.utils import clean_html_text, normalize_doi
 
@@ -285,7 +286,9 @@ class CrossrefClient(BaseClient):
 
     def _get_mailto(self) -> str:
         """Get the mailto address for polite pool."""
-        # Could be extended to read from config
+        config = get_config()
+        if config.crossref_mailto:
+            return config.crossref_mailto
         return self.DEFAULT_MAILTO
 
     def _build_filters(self, kwargs: dict[str, Any]) -> list[str]:
