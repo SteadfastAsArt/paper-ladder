@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 import httpx
 
 from paper_ladder.config import get_config
-from paper_ladder.models import Paper
+from paper_ladder.models import Paper, SortBy
 from paper_ladder.utils import RateLimiter
 
 if TYPE_CHECKING:
@@ -64,6 +64,75 @@ API_LIMITS: dict[str, dict] = {
         "note": "Requires institutional subscription",
     },
 }
+
+# Mapping from standard SortBy to API-specific sort parameters
+# None means the sort option is not supported by that API
+SORT_MAPPING: dict[str, dict[str, str | None]] = {
+    "openalex": {
+        "relevance": "relevance_score",
+        "citations": "cited_by_count:desc",
+        "date": "publication_date:desc",
+        "date_asc": "publication_date:asc",
+    },
+    "semantic_scholar": {
+        # Semantic Scholar API doesn't support sorting - we do client-side sort
+        "relevance": None,
+        "citations": "_client_sort",  # Special marker for client-side sorting
+        "date": "_client_sort",
+        "date_asc": "_client_sort",
+    },
+    "crossref": {
+        "relevance": "relevance",
+        "citations": "is-referenced-by-count",
+        "date": "published",
+        "date_asc": "published",  # With order=asc
+    },
+    "elsevier": {
+        "relevance": None,  # Default
+        "citations": "-citedby-count",
+        "date": "-coverDate",
+        "date_asc": "+coverDate",
+    },
+    "google_scholar": {
+        # Google Scholar only supports sorting in get_author_papers
+        "relevance": None,
+        "citations": None,  # Not supported in search()
+        "date": None,
+        "date_asc": None,
+    },
+    "pubmed": {
+        "relevance": "relevance",
+        "citations": None,  # PubMed doesn't have citation sort
+        "date": "pub_date",
+        "date_asc": "pub_date",  # PubMed only has date, not direction
+    },
+    "wos": {
+        "relevance": "RS+D",
+        "citations": "TC+D",
+        "date": "PY+D",
+        "date_asc": "PY+A",
+    },
+}
+
+
+def sort_papers(papers: list[Paper], sort_by: SortBy) -> list[Paper]:
+    """Sort papers client-side when API doesn't support sorting.
+
+    Args:
+        papers: List of papers to sort.
+        sort_by: Sort criteria.
+
+    Returns:
+        Sorted list of papers.
+    """
+    if sort_by == SortBy.CITATIONS:
+        return sorted(papers, key=lambda p: p.citations_count or 0, reverse=True)
+    elif sort_by == SortBy.DATE:
+        return sorted(papers, key=lambda p: p.year or 0, reverse=True)
+    elif sort_by == SortBy.DATE_ASC:
+        return sorted(papers, key=lambda p: p.year or 0, reverse=False)
+    else:
+        return papers  # relevance - keep original order
 
 
 class BaseClient(ABC):
@@ -179,6 +248,70 @@ class BaseClient(ABC):
     async def _post(self, url: str, **kwargs: object) -> httpx.Response:
         """Make a rate-limited POST request."""
         return await self._request("POST", url, **kwargs)
+
+    # =========================================================================
+    # Sorting Support
+    # =========================================================================
+
+    def _get_sort_param(self, sort: SortBy | str | None) -> tuple[str | None, bool]:
+        """Convert standard SortBy to API-specific sort parameter.
+
+        Args:
+            sort: SortBy enum, string value, or None.
+
+        Returns:
+            Tuple of (api_sort_param, needs_client_sort).
+            - api_sort_param: The API-specific sort parameter, or None if not supported.
+            - needs_client_sort: True if client-side sorting is needed.
+        """
+        if sort is None:
+            return None, False
+
+        # Convert to standard key
+        if isinstance(sort, SortBy):
+            sort_key = sort.value
+        else:
+            # Check if it's a SortBy value or a raw API-specific value
+            try:
+                sort_key = SortBy(sort).value
+            except ValueError:
+                # It's a raw API-specific value, pass through
+                return str(sort), False
+
+        # Look up in mapping
+        source_mapping = SORT_MAPPING.get(self.name, {})
+        api_param = source_mapping.get(sort_key)
+
+        if api_param == "_client_sort":
+            return None, True
+        elif api_param is None:
+            if sort_key != "relevance":
+                logger.warning(f"[{self.name}] Sort by '{sort_key}' not supported, using relevance")
+            return None, False
+        else:
+            return api_param, False
+
+    def _apply_client_sort(self, papers: list[Paper], sort: SortBy | str | None) -> list[Paper]:
+        """Apply client-side sorting if needed.
+
+        Args:
+            papers: List of papers.
+            sort: Sort criteria.
+
+        Returns:
+            Sorted list of papers.
+        """
+        if sort is None:
+            return papers
+
+        # Convert to SortBy if possible
+        if isinstance(sort, str):
+            try:
+                sort = SortBy(sort)
+            except ValueError:
+                return papers  # Raw API param, already sorted by API
+
+        return sort_papers(papers, sort)
 
     # =========================================================================
     # Pagination Support

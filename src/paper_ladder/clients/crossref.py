@@ -15,7 +15,7 @@ from paper_ladder.clients.base import BaseClient
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 from paper_ladder.config import get_config
-from paper_ladder.models import Paper
+from paper_ladder.models import Paper, SortBy
 from paper_ladder.utils import clean_html_text, normalize_doi
 
 
@@ -43,6 +43,7 @@ class CrossrefClient(BaseClient):
         query: str,
         limit: int = 10,
         offset: int = 0,
+        sort: SortBy | str | None = None,
         **kwargs: object,
     ) -> list[Paper]:
         """Search for papers matching the query.
@@ -51,6 +52,8 @@ class CrossrefClient(BaseClient):
             query: Search query string.
             limit: Maximum number of results (max 1000 per page).
             offset: Number of results to skip.
+            sort: Sort order - SortBy enum (RELEVANCE, CITATIONS, DATE, DATE_ASC)
+                  or raw API value (relevance, published, is-referenced-by-count).
             **kwargs: Additional filters:
                 - year: Publication year (int)
                 - from_year: Start year for date range
@@ -60,9 +63,6 @@ class CrossrefClient(BaseClient):
                 - has_references: Filter for works with references (bool)
                 - has_orcid: Filter for works with ORCID (bool)
                 - issn: Filter by journal ISSN
-                - sort: Sort field (relevance, published, deposited, indexed,
-                    is-referenced-by-count)
-                - order: Sort order (asc, desc)
 
         Returns:
             List of Paper objects.
@@ -79,10 +79,15 @@ class CrossrefClient(BaseClient):
         if filters:
             params["filter"] = ",".join(filters)
 
-        # Add sorting
-        if "sort" in kwargs:
-            params["sort"] = kwargs["sort"]
-            params["order"] = kwargs.get("order", "desc")
+        # Add sorting (convert unified sort to API-specific)
+        api_sort, _ = self._get_sort_param(sort)
+        if api_sort:
+            params["sort"] = api_sort
+            # Crossref uses order parameter for direction
+            if sort == SortBy.DATE_ASC:
+                params["order"] = "asc"
+            else:
+                params["order"] = "desc"
 
         response = await self._get("/works", params=params)
         data = response.json()

@@ -29,7 +29,7 @@ uv run paper-ladder --help
 ## Project Structure
 
 - `src/paper_ladder/` - Main package
-  - `models.py` - Data models (Paper, Author, Institution, ExtractedContent, SearchResult, PaperStructure, BookStructure, PaginationInfo, PaginatedSearchResult)
+  - `models.py` - Data models (Paper, Author, Institution, ExtractedContent, SearchResult, PaperStructure, BookStructure, PaginationInfo, PaginatedSearchResult, SortBy)
   - `config.py` - Configuration loader (includes PaginationLimits)
   - `clients/` - API client adapters
   - `extractors/` - Content extractors (PDF, HTML, Structured)
@@ -101,6 +101,57 @@ A chapter/section in book structure:
 - `content`, `blocks` - Chapter content
 - `children` - Nested ChapterNode list
 - `get_all_text()` - Get all text including children
+
+### SortBy
+Unified sort options for search results:
+- `RELEVANCE` - Default: sort by search relevance
+- `CITATIONS` - Sort by citation count (descending)
+- `DATE` - Sort by publication date (newest first)
+- `DATE_ASC` - Sort by publication date (oldest first)
+
+---
+
+## Unified Sort Interface
+
+All clients support a unified `SortBy` enum for sorting search results:
+
+```python
+from paper_ladder.models import SortBy
+
+# Works with all clients
+papers = await client.search("query", sort=SortBy.CITATIONS)
+papers = await client.search("query", sort=SortBy.DATE)
+```
+
+### Sort Support by Source
+
+| Source           | RELEVANCE | CITATIONS | DATE | Notes |
+|------------------|:---------:|:---------:|:----:|-------|
+| OpenAlex         | ✓         | ✓         | ✓    | Native API support |
+| Semantic Scholar | ✓         | ✓*        | ✓*   | *Client-side sorting |
+| Crossref         | ✓         | ✓         | ✓    | Native API support |
+| Elsevier/Scopus  | ✓         | ✓         | ✓    | Native API support |
+| Google Scholar   | ✓         | ✓*        | ✓*   | *Client-side sorting |
+| PubMed           | ✓         | ✗         | ✓    | No citation sort |
+| Web of Science   | ✓         | ✓         | ✓    | Native API support |
+
+**Client-side sorting**: For sources that don't support sorting (Semantic Scholar, Google Scholar),
+results are sorted locally after fetching. This works best with smaller result sets.
+
+### Raw API Values
+
+You can also pass raw API-specific sort values:
+
+```python
+# OpenAlex raw values
+papers = await client.search("query", sort="cited_by_count:desc")
+
+# Crossref raw values
+papers = await client.search("query", sort="is-referenced-by-count")
+
+# WoS raw values
+papers = await client.search("query", sort="TC+D")  # Times cited descending
+```
 
 ---
 
@@ -682,16 +733,17 @@ async with CrossrefClient() as client:
 ```python
 import asyncio
 from paper_ladder.clients import OpenAlexClient, CrossrefClient
+from paper_ladder.models import SortBy
 
 async def search_example():
-    # OpenAlex search with filters
+    # OpenAlex search with filters and unified sort
     async with OpenAlexClient() as client:
         papers = await client.search(
             "transformer attention",
             limit=10,
             year=2023,
             open_access=True,
-            sort="cited_by_count"
+            sort=SortBy.CITATIONS  # Unified sort: RELEVANCE, CITATIONS, DATE, DATE_ASC
         )
         for p in papers:
             print(f"[{p.citations_count}] {p.title} ({p.year})")
@@ -703,7 +755,8 @@ async def search_example():
             limit=10,
             year=2024,
             has_abstract=True,
-            type="journal-article"
+            type="journal-article",
+            sort=SortBy.DATE  # Sort by publication date (newest first)
         )
 
 asyncio.run(search_example())

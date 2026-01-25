@@ -12,7 +12,8 @@ from __future__ import annotations
 from typing import Any
 
 from paper_ladder.clients.base import BaseClient
-from paper_ladder.models import Author, Paper
+from paper_ladder.clients.base import sort_papers
+from paper_ladder.models import Author, Paper, SortBy
 from paper_ladder.utils import clean_html_text, is_pdf_url, normalize_doi
 
 
@@ -38,6 +39,7 @@ class GoogleScholarClient(BaseClient):
         query: str,
         limit: int = 10,
         offset: int = 0,
+        sort: SortBy | str | None = None,
         **kwargs: object,
     ) -> list[Paper]:
         """Search for papers on Google Scholar.
@@ -46,6 +48,9 @@ class GoogleScholarClient(BaseClient):
             query: Search query string.
             limit: Maximum number of results (max 20 per page).
             offset: Number of results to skip.
+            sort: Sort order - SortBy enum (RELEVANCE, CITATIONS, DATE, DATE_ASC).
+                  Note: Google Scholar search API doesn't support sorting,
+                  so non-relevance sorts are applied client-side.
             **kwargs: Additional parameters (year_low, year_high, etc.).
 
         Returns:
@@ -84,6 +89,11 @@ class GoogleScholarClient(BaseClient):
             paper = self._parse_result(result)
             if paper:
                 papers.append(paper)
+
+        # Apply client-side sorting (Google Scholar API doesn't support sorting)
+        if sort and sort != SortBy.RELEVANCE:
+            sort_enum = sort if isinstance(sort, SortBy) else SortBy(sort)
+            papers = sort_papers(papers, sort_enum)
 
         return papers
 

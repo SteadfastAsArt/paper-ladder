@@ -18,7 +18,7 @@ if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 
     import httpx
-from paper_ladder.models import Author, Institution, Paper
+from paper_ladder.models import Author, Institution, Paper, SortBy
 from paper_ladder.utils import clean_html_text, normalize_doi
 
 
@@ -53,6 +53,7 @@ class OpenAlexClient(BaseClient):
         query: str,
         limit: int = 10,
         offset: int = 0,
+        sort: SortBy | str | None = None,
         **kwargs: object,
     ) -> list[Paper]:
         """Search for papers matching the query.
@@ -61,6 +62,8 @@ class OpenAlexClient(BaseClient):
             query: Search query string.
             limit: Maximum number of results (max 200 per page).
             offset: Number of results to skip.
+            sort: Sort order - SortBy enum (RELEVANCE, CITATIONS, DATE, DATE_ASC)
+                  or raw API value (cited_by_count, publication_date, relevance_score).
             **kwargs: Additional filters:
                 - year: Publication year (int or range like "2020-2023")
                 - open_access: Filter for open access papers (bool)
@@ -68,7 +71,6 @@ class OpenAlexClient(BaseClient):
                 - institution: Filter by institution ID
                 - author: Filter by author ID
                 - cited_by_count: Minimum citation count
-                - sort: Sort field (cited_by_count, publication_date, relevance_score)
 
         Returns:
             List of Paper objects.
@@ -84,9 +86,10 @@ class OpenAlexClient(BaseClient):
         if filters:
             params["filter"] = ",".join(filters)
 
-        # Add sorting
-        if "sort" in kwargs:
-            params["sort"] = kwargs["sort"]
+        # Add sorting (convert unified sort to API-specific)
+        api_sort, _ = self._get_sort_param(sort)
+        if api_sort:
+            params["sort"] = api_sort
 
         response = await self._get("/works", params=params)
         data = response.json()

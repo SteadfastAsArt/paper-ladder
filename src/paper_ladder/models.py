@@ -2,9 +2,22 @@
 
 from __future__ import annotations
 
+from enum import Enum
 from typing import Any
 
 from pydantic import BaseModel, Field
+
+
+class SortBy(str, Enum):
+    """Standard sort options for search results.
+
+    These values are automatically mapped to API-specific parameters.
+    """
+
+    RELEVANCE = "relevance"  # Default: sort by search relevance
+    CITATIONS = "citations"  # Sort by citation count (descending)
+    DATE = "date"  # Sort by publication date (newest first)
+    DATE_ASC = "date_asc"  # Sort by publication date (oldest first)
 
 
 class Paper(BaseModel):

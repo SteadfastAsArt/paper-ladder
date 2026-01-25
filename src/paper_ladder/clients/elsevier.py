@@ -18,7 +18,7 @@ from paper_ladder.clients.base import BaseClient
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
-from paper_ladder.models import Author, Institution, Paper
+from paper_ladder.models import Author, Institution, Paper, SortBy
 from paper_ladder.utils import clean_html_text, normalize_doi
 
 
@@ -51,6 +51,7 @@ class ElsevierClient(BaseClient):
         query: str,
         limit: int = 10,
         offset: int = 0,
+        sort: SortBy | str | None = None,
         **kwargs: object,
     ) -> list[Paper]:
         """Search for papers in Scopus.
@@ -59,6 +60,8 @@ class ElsevierClient(BaseClient):
             query: Search query string.
             limit: Maximum number of results (max 25 per page).
             offset: Number of results to skip.
+            sort: Sort order - SortBy enum (RELEVANCE, CITATIONS, DATE, DATE_ASC)
+                  or raw API value (-citedby-count, -coverDate, +coverDate).
             **kwargs: Additional parameters (year, subject_area, etc.).
 
         Returns:
@@ -81,6 +84,11 @@ class ElsevierClient(BaseClient):
             params["date"] = kwargs["year"]
         if "subject_area" in kwargs:
             params["subj"] = kwargs["subject_area"]
+
+        # Add sorting (convert unified sort to API-specific)
+        api_sort, _ = self._get_sort_param(sort)
+        if api_sort:
+            params["sort"] = api_sort
 
         response = await self._get(
             "/content/search/scopus",

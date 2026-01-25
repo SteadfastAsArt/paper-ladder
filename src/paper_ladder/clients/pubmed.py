@@ -14,7 +14,7 @@ import xml.etree.ElementTree as ET
 from typing import Any
 
 from paper_ladder.clients.base import BaseClient
-from paper_ladder.models import Author, Paper
+from paper_ladder.models import Author, Paper, SortBy
 from paper_ladder.utils import clean_html_text, extract_year_from_date, normalize_doi
 
 
@@ -56,6 +56,7 @@ class PubMedClient(BaseClient):
         query: str,
         limit: int = 10,
         offset: int = 0,
+        sort: SortBy | str | None = None,
         **kwargs: object,
     ) -> list[Paper]:
         """Search for papers matching the query.
@@ -64,6 +65,9 @@ class PubMedClient(BaseClient):
             query: Search query string (supports PubMed query syntax).
             limit: Maximum number of results (max 10000 per request).
             offset: Number of results to skip.
+            sort: Sort order - SortBy enum (RELEVANCE, DATE, DATE_ASC)
+                  or raw API value (relevance, pub_date, author).
+                  Note: CITATIONS sort is not supported by PubMed.
             **kwargs: Additional filters:
                 - year: Publication year (int)
                 - from_year: Start year for date range
@@ -72,7 +76,6 @@ class PubMedClient(BaseClient):
                 - journal: Journal name to filter by
                 - mesh: MeSH term to filter by
                 - article_type: Article type (e.g., "review", "clinical trial")
-                - sort: Sort order ("relevance", "pub_date", "author")
 
         Returns:
             List of Paper objects.
@@ -91,13 +94,10 @@ class PubMedClient(BaseClient):
             }
         )
 
-        # Handle sorting
-        sort = kwargs.get("sort")
-        if sort == "pub_date":
-            search_params["sort"] = "pub_date"
-        elif sort == "author":
-            search_params["sort"] = "author"
-        # Default is relevance
+        # Handle sorting (convert unified sort to API-specific)
+        api_sort, _ = self._get_sort_param(sort)
+        if api_sort:
+            search_params["sort"] = api_sort
 
         response = await self._get("/esearch.fcgi", params=search_params)
         search_data = response.json()

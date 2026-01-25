@@ -11,8 +11,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from paper_ladder.clients.base import BaseClient
-from paper_ladder.models import Author, Paper
+from paper_ladder.clients.base import BaseClient, sort_papers
+from paper_ladder.models import Author, Paper, SortBy
 from paper_ladder.utils import clean_html_text, normalize_doi
 
 
@@ -62,6 +62,7 @@ class SemanticScholarClient(BaseClient):
         query: str,
         limit: int = 10,
         offset: int = 0,
+        sort: SortBy | str | None = None,
         **kwargs: object,
     ) -> list[Paper]:
         """Search for papers matching the query.
@@ -71,6 +72,9 @@ class SemanticScholarClient(BaseClient):
             limit: Maximum number of results (max 100).
             offset: Number of results to skip. Note: offset + limit ≤ 1,000
                    (reduced from 10,000 in Oct 2024).
+            sort: Sort order - SortBy enum (RELEVANCE, CITATIONS, DATE, DATE_ASC).
+                  Note: Semantic Scholar API doesn't support sorting, so non-relevance
+                  sorts are applied client-side after fetching results.
             **kwargs: Additional parameters (year, fields_of_study, etc.).
 
         Returns:
@@ -103,6 +107,12 @@ class SemanticScholarClient(BaseClient):
             paper = self._parse_paper(result)
             if paper:
                 papers.append(paper)
+
+        # Apply client-side sorting (Semantic Scholar API doesn't support sorting)
+        _, needs_client_sort = self._get_sort_param(sort)
+        if needs_client_sort and sort:
+            sort_enum = sort if isinstance(sort, SortBy) else SortBy(sort)
+            papers = sort_papers(papers, sort_enum)
 
         return papers
 

@@ -14,7 +14,7 @@ from __future__ import annotations
 from typing import Any
 
 from paper_ladder.clients.base import BaseClient
-from paper_ladder.models import Author, Paper
+from paper_ladder.models import Author, Paper, SortBy
 from paper_ladder.utils import clean_html_text, normalize_doi
 
 
@@ -55,6 +55,7 @@ class WebOfScienceClient(BaseClient):
         query: str,
         limit: int = 10,
         offset: int = 0,
+        sort: SortBy | str | None = None,
         **kwargs: object,
     ) -> list[Paper]:
         """Search for papers matching the query.
@@ -63,6 +64,8 @@ class WebOfScienceClient(BaseClient):
             query: Search query string (supports WoS advanced search syntax).
             limit: Maximum number of results (max 100 per request).
             offset: Number of results to skip (max 100000).
+            sort: Sort order - SortBy enum (RELEVANCE, CITATIONS, DATE, DATE_ASC)
+                  or raw API value (RS+D, TC+D, PY+D, PY+A).
             **kwargs: Additional filters:
                 - year: Publication year (int)
                 - from_year: Start year for date range
@@ -70,7 +73,6 @@ class WebOfScienceClient(BaseClient):
                 - database: Database to search (WOS, BCI, CCC, DRCI, etc.)
                 - edition: Collection edition (SCI, SSCI, AHCI, ISTP, etc.)
                 - doc_type: Document type (Article, Review, etc.)
-                - sort: Sort order ("relevance", "date", "cited")
 
         Returns:
             List of Paper objects.
@@ -92,14 +94,12 @@ class WebOfScienceClient(BaseClient):
         if "edition" in kwargs:
             params["edition"] = kwargs["edition"]
 
-        # Handle sorting
-        sort = kwargs.get("sort")
-        if sort == "date":
-            params["sortField"] = "PY+D"  # Publication year descending
-        elif sort == "cited":
-            params["sortField"] = "TC+D"  # Times cited descending
+        # Handle sorting (convert unified sort to API-specific)
+        api_sort, _ = self._get_sort_param(sort)
+        if api_sort:
+            params["sortField"] = api_sort
         else:
-            params["sortField"] = "RS+D"  # Relevance descending
+            params["sortField"] = "RS+D"  # Default: relevance descending
 
         try:
             response = await self._get(
