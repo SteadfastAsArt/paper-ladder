@@ -123,6 +123,11 @@ A chapter/section in book structure:
 - Supports filtering, sorting, grouping
 - Abstract stored as inverted index (needs reconstruction)
 
+**Pagination**:
+- `per_page`: 1-200 (default 25)
+- Offset pagination: max 10,000 results
+- Cursor pagination: unlimited (use `cursor=*`)
+
 **Base URL**: `https://api.openalex.org`
 
 **Implemented Methods**:
@@ -148,12 +153,17 @@ A chapter/section in book structure:
 - **Recommendations**: https://api.semanticscholar.org/api-docs/#tag/Recommendations-API
 
 **Key Features**:
-- Unauthenticated: 100 requests per 5 minutes
-- Authenticated: 1 request per second (need API key)
+- Unauthenticated: 5,000 requests per 5 minutes (shared pool)
+- Authenticated: 1 req/s (search/batch), 10 req/s (other endpoints)
 - Entities: Papers, Authors, Paper citations/references
 - Fields of study classification
 - Recommendation API
 - Batch paper lookup
+
+**Pagination** (⚠️ Updated Oct 2024):
+- Relevance Search: `offset + limit ≤ 1,000` (reduced from 10,000)
+- Bulk Search: up to 10M results (token-based pagination)
+- Default limit: 100 per request
 
 **Base URL**: `https://api.semanticscholar.org/graph/v1`
 
@@ -193,6 +203,12 @@ A chapter/section in book structure:
 - Citation overview
 - ScienceDirect full-text (with appropriate entitlements)
 
+**Pagination**:
+- `count`: max 200 per request
+- Offset pagination (`start`): max 5,000 results
+- Cursor pagination: unlimited (forward only)
+- Weekly limits: 20,000 queries, 20,000 record downloads
+
 **Base URL**: `https://api.elsevier.com`
 
 **Header for auth**: `X-ELS-APIKey: YOUR_KEY`
@@ -226,6 +242,10 @@ A chapter/section in book structure:
 - Case law search
 - Related articles
 
+**Pagination**:
+- `num`: 1-20 results per request (default 10)
+- `start`: offset parameter, no documented upper limit
+
 **Base URL**: `https://serpapi.com`
 
 **Param for auth**: `api_key=YOUR_KEY`
@@ -255,6 +275,12 @@ A chapter/section in book structure:
 - DOI registration agency
 - Supports filtering, sorting, cursor-based pagination
 - Includes funding information, licenses, ORCID/ROR identifiers
+
+**Pagination**:
+- `rows`: max 1,000 per request (default 20)
+- Offset pagination: supported, no hard limit
+- Cursor pagination: use `cursor=*` (cursor expires after 5 minutes)
+- For large datasets: split by date range or use data snapshots
 
 **Base URL**: `https://api.crossref.org`
 
@@ -294,6 +320,12 @@ A chapter/section in book structure:
 - PMC full-text links for open access articles
 - Related articles algorithm
 
+**Pagination**:
+- `retmax`: max 10,000 per request (default 20)
+- `retstart`: offset parameter
+- PubMed database: ESearch limited to first 10,000 results
+- Other NCBI databases: can retrieve more via multiple requests
+
 **Base URL**: `https://eutils.ncbi.nlm.nih.gov/entrez/eutils`
 
 **Param for auth**: `api_key=YOUR_KEY` (optional)
@@ -320,6 +352,11 @@ A chapter/section in book structure:
 - Times Cited counts
 - Related records feature
 - Multiple database editions (SCI, SSCI, AHCI, etc.)
+
+**Pagination**:
+- Max 100 records per request
+- Starter API: max 100,000 total results (increased from 50,000 in 2024)
+- `firstRecord`: 1-based offset parameter
 
 **Base URL**: `https://api.clarivate.com/api/wos`
 
@@ -498,15 +535,15 @@ asyncio.run(test())
 
 ### Rate Limits
 
-| Engine           | Without Key           | With Key              | Default Setting |
-|------------------|-----------------------|-----------------------|-----------------|
-| OpenAlex         | 100,000/day (~10/s)   | N/A (no key needed)   | 10 req/s        |
-| Semantic Scholar | 100/5min (0.33/s)     | 1 req/s               | 10 req/s        |
-| Crossref         | No hard limit         | N/A (no key needed)   | 50 req/s        |
-| Elsevier/Scopus  | Key required          | 20,000/week (~2/s)    | 5 req/s         |
-| Google Scholar   | Key required          | ~$0.015/search        | 1 req/s         |
-| PubMed           | 3 req/s               | 10 req/s              | 3 req/s         |
-| Web of Science   | Key required          | 2 req/s, 200 req/day  | 2 req/s         |
+| Engine           | Without Key               | With Key                      | Default Setting |
+|------------------|---------------------------|-------------------------------|-----------------|
+| OpenAlex         | 100,000/day (~10/s)       | N/A (no key needed)           | 10 req/s        |
+| Semantic Scholar | 5,000/5min (shared pool)  | 1 req/s (search), 10 req/s (other) | 10 req/s   |
+| Crossref         | No hard limit             | N/A (no key needed)           | 50 req/s        |
+| Elsevier/Scopus  | Key required              | 20,000 queries/week           | 5 req/s         |
+| Google Scholar   | Key required              | ~$0.015/search                | 1 req/s         |
+| PubMed           | 3 req/s                   | 10 req/s                      | 3 req/s         |
+| Web of Science   | Key required              | Varies by subscription        | 2 req/s         |
 
 ### Single Request Return Limits
 
@@ -518,11 +555,43 @@ asyncio.run(test())
 | Semantic Scholar | get_papers_batch()        | Fixed 500         | 500      |
 | Crossref         | search()                  | min(limit, 1000)  | 1000     |
 | Elsevier/Scopus  | search()                  | min(limit, 25)    | 200*     |
-| Google Scholar   | search()                  | No hard limit     | 20       |
+| Google Scholar   | search()                  | min(limit, 20)    | 20       |
 | PubMed           | search()                  | min(limit, 10000) | 10000    |
 | Web of Science   | search()                  | min(limit, 100)   | 100      |
 
 *Elsevier API supports up to 200, but code limits to 25 for safety.
+
+### Pagination Limits (Official Documentation)
+
+| Engine           | Per Request | Total Results (Offset) | Total Results (Cursor) | Pagination Type |
+|------------------|-------------|------------------------|------------------------|-----------------|
+| OpenAlex         | 200         | 10,000                 | Unlimited              | offset + cursor |
+| Semantic Scholar | 100         | **1,000**              | 10M (Bulk Search)      | offset / token  |
+| Crossref         | 1,000       | No hard limit          | Unlimited              | offset + cursor |
+| Elsevier/Scopus  | 200         | 5,000                  | Unlimited              | offset + cursor |
+| Google Scholar   | 20          | No documented limit    | N/A                    | offset only     |
+| PubMed           | 10,000      | 10,000 (PubMed DB)     | N/A                    | offset only     |
+| Web of Science   | 100         | 100,000 (Starter)      | N/A                    | offset only     |
+
+**⚠️ Important Notes**:
+
+1. **Semantic Scholar** (Updated Oct 2024): Relevance Search limit reduced from 10,000 to **1,000** (`offset + limit ≤ 1,000`). Use Bulk Search API for larger datasets.
+
+2. **OpenAlex**: Basic paging limited to 10,000 results. Use `cursor=*` for unlimited pagination.
+
+3. **Crossref**: Cursor expires after 5 minutes. For large datasets, split by date range or use data snapshots.
+
+4. **Elsevier/Scopus**: Offset pagination limited to 5,000 records. Use cursor pagination (`cursor` parameter) for more. Weekly limits: 20,000 queries, 20,000 record downloads.
+
+5. **PubMed**: ESearch can only retrieve first 10,000 records for PubMed database. Other NCBI databases allow more via multiple requests.
+
+**Documentation Sources**:
+- OpenAlex: https://docs.openalex.org/how-to-use-the-api/get-lists-of-entities/paging
+- Semantic Scholar: https://github.com/allenai/s2-folks/blob/main/API_RELEASE_NOTES.md
+- Crossref: https://www.crossref.org/documentation/retrieve-metadata/rest-api/tips-for-using-the-crossref-rest-api/
+- Elsevier: https://dev.elsevier.com/guides/Scopus%20API%20Guide_V1_20230907.pdf
+- PubMed: https://www.ncbi.nlm.nih.gov/books/NBK25499/
+- Web of Science: https://clarivate.com/academia-government/release-notes/wos-apis/
 
 ### Citation Count Comparison
 
