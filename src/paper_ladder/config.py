@@ -32,6 +32,22 @@ class RateLimits(BaseModel):
     wos: float = 2  # 2 req/s per Clarivate guidelines
 
 
+class PaginationLimits(BaseModel):
+    """Maximum results per source for auto-pagination.
+
+    These limits control how many results search_all() will retrieve.
+    For sources with cursor support, higher limits are possible.
+    """
+
+    openalex: int = 10000  # Cursor pagination allows unlimited, but default limit
+    semantic_scholar: int = 1000  # API hard limit (offset + limit ≤ 1,000)
+    crossref: int = 10000  # Cursor pagination allows unlimited
+    elsevier: int = 5000  # Cursor pagination can bypass 5,000 offset limit
+    google_scholar: int = 100  # Paid API, limit to control costs
+    pubmed: int = 10000  # ESearch hard limit
+    wos: int = 10000  # Based on subscription tier
+
+
 class Config(BaseModel):
     """Main configuration model."""
 
@@ -58,6 +74,12 @@ class Config(BaseModel):
 
     # Rate limiting
     rate_limits: RateLimits = Field(default_factory=RateLimits)
+
+    # Pagination limits (max results per source for search_all)
+    pagination_limits: PaginationLimits = Field(default_factory=PaginationLimits)
+
+    # Enable auto-pagination in search_all()
+    auto_pagination: bool = True
 
     # Output settings
     output_dir: str = "./output"

@@ -36,5 +36,19 @@ rate_limits:
   pubmed: 3  # 3 without key, 10 with key
   wos: 2
 
+# Auto-pagination limits (max results per source for search_all())
+# For sources with cursor support, higher limits are possible
+pagination_limits:
+  openalex: 10000       # Cursor pagination allows unlimited
+  semantic_scholar: 1000 # API hard limit (offset + limit ≤ 1,000, updated Oct 2024)
+  crossref: 10000       # Cursor pagination allows unlimited (cursor expires after 5 min)
+  elsevier: 5000        # Cursor pagination bypasses 5,000 offset limit
+  google_scholar: 100   # Paid API (~$0.015/request), limit to control costs
+  pubmed: 10000         # ESearch hard limit
+  wos: 10000            # Based on subscription tier
+
+# Enable auto-pagination in search_all()
+auto_pagination: true
+
 # Output settings
 output_dir: "./output"

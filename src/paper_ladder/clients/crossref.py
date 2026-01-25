@@ -8,9 +8,12 @@ API Documentation: https://www.crossref.org/documentation/retrieve-metadata/rest
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from paper_ladder.clients.base import BaseClient
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
 from paper_ladder.config import get_config
 from paper_ladder.models import Paper
 from paper_ladder.utils import clean_html_text, normalize_doi
@@ -92,6 +95,67 @@ class CrossrefClient(BaseClient):
                 papers.append(paper)
 
         return papers
+
+    async def search_with_cursor(
+        self,
+        query: str,
+        max_results: int | None = None,
+        **kwargs: object,
+    ) -> AsyncIterator[Paper]:
+        """Search for papers using cursor pagination.
+
+        This method allows retrieving large result sets efficiently using
+        cursor-based pagination. Note that cursors expire after 5 minutes.
+
+        Args:
+            query: Search query string.
+            max_results: Maximum number of results to retrieve. None for unlimited.
+            **kwargs: Additional filters (same as search()).
+
+        Yields:
+            Paper objects.
+        """
+        cursor = "*"
+        count = 0
+        rows = 1000  # Crossref max per request
+
+        while cursor:
+            params: dict[str, Any] = {
+                "query": query,
+                "rows": rows,
+                "cursor": cursor,
+                "mailto": self._get_mailto(),
+            }
+
+            # Build filter string
+            filters = self._build_filters(kwargs)
+            if filters:
+                params["filter"] = ",".join(filters)
+
+            # Add sorting
+            if "sort" in kwargs:
+                params["sort"] = kwargs["sort"]
+                params["order"] = kwargs.get("order", "desc")
+
+            response = await self._get("/works", params=params)
+            data = response.json()
+            message = data.get("message", {})
+            items = message.get("items", [])
+
+            for item in items:
+                paper = self._parse_work(item)
+                if paper:
+                    yield paper
+                    count += 1
+                    if max_results and count >= max_results:
+                        return
+
+            # Check if there are more results
+            if len(items) < rows:
+                break
+
+            # Get next cursor
+            cursor = message.get("next-cursor")
 
     async def get_paper(self, identifier: str) -> Paper | None:
         """Get a paper by DOI.

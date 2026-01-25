@@ -15,6 +15,8 @@ from typing import TYPE_CHECKING, Any
 from paper_ladder.clients.base import BaseClient
 
 if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
+
     import httpx
 from paper_ladder.models import Author, Institution, Paper
 from paper_ladder.utils import clean_html_text, normalize_doi
@@ -96,6 +98,59 @@ class OpenAlexClient(BaseClient):
                 papers.append(paper)
 
         return papers
+
+    async def search_with_cursor(
+        self,
+        query: str,
+        max_results: int | None = None,
+        **kwargs: object,
+    ) -> AsyncIterator[Paper]:
+        """Search for papers using cursor pagination.
+
+        This method allows retrieving more than 10,000 results by using
+        cursor-based pagination instead of offset pagination.
+
+        Args:
+            query: Search query string.
+            max_results: Maximum number of results to retrieve. None for unlimited.
+            **kwargs: Additional filters (same as search()).
+
+        Yields:
+            Paper objects.
+        """
+        cursor = "*"
+        count = 0
+        per_page = 200  # OpenAlex max per request
+
+        while cursor:
+            params: dict[str, Any] = {
+                "search": query,
+                "per_page": per_page,
+                "cursor": cursor,
+            }
+
+            # Build filter string
+            filters = self._build_filters(kwargs)
+            if filters:
+                params["filter"] = ",".join(filters)
+
+            # Add sorting
+            if "sort" in kwargs:
+                params["sort"] = kwargs["sort"]
+
+            response = await self._get("/works", params=params)
+            data = response.json()
+
+            for result in data.get("results", []):
+                paper = self._parse_work(result)
+                if paper:
+                    yield paper
+                    count += 1
+                    if max_results and count >= max_results:
+                        return
+
+            # Get next cursor
+            cursor = data.get("meta", {}).get("next_cursor")
 
     async def get_paper(self, identifier: str) -> Paper | None:
         """Get a paper by DOI or OpenAlex ID.

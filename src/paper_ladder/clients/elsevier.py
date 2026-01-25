@@ -12,9 +12,12 @@ API Documentation: https://dev.elsevier.com/documentation/
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from paper_ladder.clients.base import BaseClient
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
 from paper_ladder.models import Author, Institution, Paper
 from paper_ladder.utils import clean_html_text, normalize_doi
 
@@ -94,6 +97,75 @@ class ElsevierClient(BaseClient):
                 papers.append(paper)
 
         return papers
+
+    async def search_with_cursor(
+        self,
+        query: str,
+        max_results: int | None = None,
+        **kwargs: object,
+    ) -> AsyncIterator[Paper]:
+        """Search for papers using cursor pagination.
+
+        This method allows retrieving more than 5,000 results by using
+        cursor-based pagination instead of offset pagination.
+
+        Note: Weekly limit of 20,000 downloads applies.
+
+        Args:
+            query: Search query string.
+            max_results: Maximum number of results to retrieve. None for unlimited.
+            **kwargs: Additional parameters (year, subject_area, etc.).
+
+        Yields:
+            Paper objects.
+
+        Raises:
+            ValueError: If API key is not configured.
+        """
+        if not self.api_key:
+            raise ValueError("Elsevier API key required. Set 'elsevier_api_key' in config.yaml")
+
+        cursor = "*"
+        count = 0
+        per_page = 200  # Elsevier max per request
+
+        while cursor:
+            params: dict[str, Any] = {
+                "query": query,
+                "count": per_page,
+                "cursor": cursor,
+            }
+
+            # Add optional filters
+            if "year" in kwargs:
+                params["date"] = kwargs["year"]
+            if "subject_area" in kwargs:
+                params["subj"] = kwargs["subject_area"]
+
+            response = await self._get(
+                "/content/search/scopus",
+                params=params,
+                headers=self._get_headers(),
+            )
+            data = response.json()
+            search_results = data.get("search-results", {})
+            entries = search_results.get("entry", [])
+
+            for entry in entries:
+                paper = self._parse_scopus_entry(entry)
+                if paper:
+                    yield paper
+                    count += 1
+                    if max_results and count >= max_results:
+                        return
+
+            # Check if there are more results
+            if len(entries) < per_page:
+                break
+
+            # Get next cursor
+            cursor_info = search_results.get("cursor", {})
+            cursor = cursor_info.get("@next")
 
     async def get_paper(self, identifier: str) -> Paper | None:
         """Get a paper by DOI or Scopus ID.

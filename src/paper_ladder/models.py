@@ -235,3 +235,27 @@ class BookStructure(DocumentStructure):
 
         _collect(self.chapters)
         return result
+
+
+# ============================================================================
+# Pagination Models
+# ============================================================================
+
+
+class PaginationInfo(BaseModel):
+    """Information about pagination state and limits."""
+
+    total_results: int | None = None  # Total results available (if known)
+    returned_count: int = 0  # Number of results returned
+    has_more: bool = False  # Whether more results are available
+    next_cursor: str | None = None  # Cursor for next page (if using cursor pagination)
+    next_offset: int | None = None  # Offset for next page (if using offset pagination)
+    source_limit: str | None = None  # Description of any limits applied
+
+
+class PaginatedSearchResult(BaseModel):
+    """Search result with pagination information."""
+
+    papers: list[Paper] = Field(default_factory=list)
+    pagination: PaginationInfo = Field(default_factory=PaginationInfo)
+    source: str  # The source API that returned these results

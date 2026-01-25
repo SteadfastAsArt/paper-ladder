@@ -69,16 +69,21 @@ class SemanticScholarClient(BaseClient):
         Args:
             query: Search query string.
             limit: Maximum number of results (max 100).
-            offset: Number of results to skip (max 9999).
+            offset: Number of results to skip. Note: offset + limit ≤ 1,000
+                   (reduced from 10,000 in Oct 2024).
             **kwargs: Additional parameters (year, fields_of_study, etc.).
 
         Returns:
             List of Paper objects.
         """
+        # API limit: offset + limit ≤ 1,000 (updated Oct 2024)
+        effective_limit = min(limit, 100)
+        effective_offset = min(offset, 1000 - effective_limit)
+
         params: dict[str, Any] = {
             "query": query,
-            "limit": min(limit, 100),
-            "offset": min(offset, 9999),
+            "limit": effective_limit,
+            "offset": effective_offset,
             "fields": ",".join(self.PAPER_FIELDS),
         }
 

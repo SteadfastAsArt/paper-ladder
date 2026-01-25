@@ -29,8 +29,8 @@ uv run paper-ladder --help
 ## Project Structure
 
 - `src/paper_ladder/` - Main package
-  - `models.py` - Data models (Paper, Author, Institution, ExtractedContent, SearchResult, PaperStructure, BookStructure)
-  - `config.py` - Configuration loader
+  - `models.py` - Data models (Paper, Author, Institution, ExtractedContent, SearchResult, PaperStructure, BookStructure, PaginationInfo, PaginatedSearchResult)
+  - `config.py` - Configuration loader (includes PaginationLimits)
   - `clients/` - API client adapters
   - `extractors/` - Content extractors (PDF, HTML, Structured)
   - `aggregator.py` - Multi-source aggregation
@@ -516,6 +516,8 @@ asyncio.run(test())
 | Feature                 | OpenAlex | Semantic Scholar | Crossref | Elsevier | Google Scholar | PubMed | Web of Science |
 |-------------------------|:--------:|:----------------:|:--------:|:--------:|:--------------:|:------:|:--------------:|
 | search()                |    ✓     |        ✓         |    ✓     |    ✓     |       ✓        |   ✓    |       ✓        |
+| search_with_cursor()    |    ✓     |        ✗         |    ✓     |    ✓     |       ✗        |   ✗    |       ✗        |
+| search_all()            |    ✓     |        ✓         |    ✓     |    ✓     |       ✓        |   ✓    |       ✓        |
 | get_paper()             |    ✓     |        ✓         |    ✓     |    ✓     |       ✓        |   ✓    |       ✓        |
 | get_paper_citations()   |    ✓     |        ✓         |    ✗     |    ✓     |       ✓        |   ✓    |       ✓        |
 | get_paper_references()  |    ✓     |        ✓         |    ✓     |    ✗     |       ✗        |   ✓    |       ✓        |
@@ -792,6 +794,104 @@ async def paginated_search():
         print(f"Total retrieved: {len(all_papers)}")
 
 asyncio.run(paginated_search())
+```
+
+---
+
+## Advanced Pagination
+
+### Cursor Pagination
+
+For sources that support cursor pagination (OpenAlex, Crossref, Elsevier), use `search_with_cursor()` to bypass offset limits and retrieve unlimited results:
+
+```python
+from paper_ladder.clients import OpenAlexClient
+
+async def cursor_pagination_example():
+    async with OpenAlexClient() as client:
+        # Retrieve more than 10,000 results using cursor pagination
+        count = 0
+        async for paper in client.search_with_cursor("machine learning", max_results=50000):
+            print(f"{paper.title} ({paper.year})")
+            count += 1
+        print(f"Total: {count}")
+
+asyncio.run(cursor_pagination_example())
+```
+
+**Supported Sources**:
+
+| Source   | Method                  | Bypasses Limit |
+|----------|-------------------------|----------------|
+| OpenAlex | `search_with_cursor()`  | 10,000 → ∞     |
+| Crossref | `search_with_cursor()`  | N/A → ∞        |
+| Elsevier | `search_with_cursor()`  | 5,000 → ∞      |
+
+**Note**: Crossref cursors expire after 5 minutes. Elsevier has a weekly limit of 20,000 downloads.
+
+### Auto Pagination (search_all)
+
+Use `search_all()` for automatic pagination with configurable limits:
+
+```python
+from paper_ladder.clients import OpenAlexClient, SemanticScholarClient
+
+async def auto_pagination_example():
+    # Automatically uses cursor pagination when needed
+    async with OpenAlexClient() as client:
+        papers = await client.search_all("transformer", max_results=15000)
+        print(f"Got {len(papers)} papers")
+
+    # Warns when hitting API limits
+    async with SemanticScholarClient() as client:
+        papers = await client.search_all("attention mechanism", max_results=5000)
+        # WARNING: [semantic_scholar] Requested 5000 results, but limited to 1000.
+        # API limit: offset + limit ≤ 1,000 (reduced from 10,000)
+
+asyncio.run(auto_pagination_example())
+```
+
+### Pagination Configuration
+
+Configure per-source limits in `config.yaml`:
+
+```yaml
+# Auto-pagination limits (max results per source for search_all())
+pagination_limits:
+  openalex: 10000       # Cursor pagination allows unlimited
+  semantic_scholar: 1000 # API hard limit (offset + limit ≤ 1,000)
+  crossref: 10000       # Cursor pagination allows unlimited
+  elsevier: 5000        # Cursor pagination bypasses 5,000 offset limit
+  google_scholar: 100   # Paid API, limit to control costs
+  pubmed: 10000         # ESearch hard limit
+  wos: 10000            # Based on subscription tier
+
+# Enable auto-pagination
+auto_pagination: true
+```
+
+### Pagination Models
+
+Two new models for pagination tracking:
+
+```python
+from paper_ladder.models import PaginationInfo, PaginatedSearchResult
+
+# PaginationInfo - tracks pagination state
+info = PaginationInfo(
+    total_results=50000,
+    returned_count=1000,
+    has_more=True,
+    next_cursor="abc123",
+    source_limit="API limit: 10,000 offset max"
+)
+
+# PaginatedSearchResult - search result with pagination info
+result = PaginatedSearchResult(
+    papers=[...],
+    pagination=info,
+    source="openalex"
+)
 ```
 
 ---
