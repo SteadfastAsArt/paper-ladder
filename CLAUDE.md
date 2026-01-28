@@ -134,8 +134,12 @@ papers = await client.search("query", sort=SortBy.DATE)
 | Google Scholar   | ✓         | ✓*        | ✓*   | *Client-side sorting |
 | PubMed           | ✓         | ✗         | ✓    | No citation sort |
 | Web of Science   | ✓         | ✓         | ✓    | Native API support |
+| arXiv            | ✓         | ✓*        | ✓    | *Client-side (no citation data) |
+| bioRxiv          | ✓*        | ✓*        | ✓*   | *Client-side sorting |
+| medRxiv          | ✓*        | ✓*        | ✓*   | *Client-side sorting |
+| GS Scraper       | ✓         | ✓*        | ✓*   | *Client-side sorting |
 
-**Client-side sorting**: For sources that don't support sorting (Semantic Scholar, Google Scholar),
+**Client-side sorting**: For sources that don't support sorting (Semantic Scholar, Google Scholar, bioRxiv, medRxiv, GS Scraper),
 results are sorted locally after fetching. This works best with smaller result sets.
 
 ### Raw API Values
@@ -424,6 +428,149 @@ papers = await client.search("query", sort="TC+D")  # Times cited descending
 
 **Note**: WoS Expanded API requires institutional subscription. The free Starter API has limited features (no citation counts, 50 req/day).
 
+### 8. arXiv
+
+- **Documentation**: https://info.arxiv.org/help/api/index.html
+- **User's Manual**: https://info.arxiv.org/help/api/user-manual.html
+- **Query Interface**: https://info.arxiv.org/help/api/user-manual.html#query_interface
+
+**Key Features**:
+- Free access to 2M+ preprints
+- No API key required
+- Fields: physics, mathematics, computer science, biology, finance, statistics, economics
+- Query syntax: `all:`, `ti:`, `au:`, `abs:`, `cat:`
+- Direct PDF access
+
+**Pagination**:
+- `max_results`: up to 2000 per request
+- `start`: offset parameter
+- No hard limit on total results
+
+**Base URL**: `http://export.arxiv.org/api`
+
+**Rate Limit**: 1 request per 3 seconds recommended
+
+**Implemented Methods**:
+- `search(query, limit, offset, **filters)` - Search papers (category, sort)
+- `get_paper(identifier)` - Get paper by arXiv ID
+- `search_by_author(author_name, limit, offset)` - Search by author
+- `search_by_category(category, query, limit, offset)` - Search within category
+- `search_with_cursor(query, max_results)` - Paginated search iterator
+
+### 9. bioRxiv
+
+- **Documentation**: https://api.biorxiv.org/
+
+**Key Features**:
+- Free access to biology preprints
+- No API key required
+- Date-based search (no full-text search via API)
+- Direct PDF access
+
+**Pagination**:
+- Returns 100 results per page
+- Cursor-based pagination
+
+**Base URL**: `https://api.biorxiv.org`
+
+**Implemented Methods**:
+- `search(query, limit, offset, **filters)` - Search papers (from_date, to_date, days)
+- `get_paper(identifier)` - Get paper by DOI
+- `search_by_date(from_date, to_date, limit, offset)` - Search by date range
+- `get_recent_papers(days, limit)` - Get recent papers
+- `search_by_category(category, from_date, to_date, limit)` - Search by category
+- `search_with_cursor(query, max_results)` - Paginated search iterator
+
+### 10. medRxiv
+
+- **Documentation**: https://api.biorxiv.org/ (shared with bioRxiv)
+
+**Key Features**:
+- Free access to health sciences preprints
+- No API key required
+- Same API as bioRxiv with different server parameter
+- Direct PDF access
+
+**Pagination**:
+- Returns 100 results per page
+- Cursor-based pagination
+
+**Base URL**: `https://api.biorxiv.org`
+
+**Implemented Methods**:
+- `search(query, limit, offset, **filters)` - Search papers (from_date, to_date, days)
+- `get_paper(identifier)` - Get paper by DOI
+- `search_by_date(from_date, to_date, limit, offset)` - Search by date range
+- `get_recent_papers(days, limit)` - Get recent papers
+- `search_by_category(category, from_date, to_date, limit)` - Search by category
+- `search_with_cursor(query, max_results)` - Paginated search iterator
+
+### 11. Google Scholar Scraper (Free)
+
+**WARNING**: Web scraping may violate Google's Terms of Service. Use responsibly for educational and research purposes only. Consider using the official SerpAPI client for production use.
+
+**Key Features**:
+- Free (no API key required)
+- Scrapes Google Scholar directly
+- Rotating user agents
+- Built-in rate limiting (1 request per 5 seconds)
+- May trigger CAPTCHA with heavy use
+
+**Pagination**:
+- 10 results per page (Google Scholar limit)
+- Offset-based pagination
+
+**Base URL**: `https://scholar.google.com`
+
+**Implemented Methods**:
+- `search(query, limit, offset, **filters)` - Search papers (year_low, year_high, year)
+- `get_paper(identifier)` - Get paper by DOI or title
+- `search_author(author_name, limit, offset)` - Search by author
+- `get_author_profile(author_id)` - Get author profile by ID
+
+---
+
+## PDF Download
+
+Paper-Ladder includes a PDF downloader that supports various academic sources:
+
+```python
+from paper_ladder.downloader import PDFDownloader, download_pdf, download_papers
+
+# Simple download
+path = await download_pdf("https://arxiv.org/pdf/2301.07041.pdf", output_dir="papers/")
+
+# Download with custom filename
+path = await download_pdf(
+    "https://arxiv.org/abs/2301.07041",
+    output_dir="papers/",
+    filename="attention_paper"
+)
+
+# Download from a Paper object
+downloader = PDFDownloader(output_dir="papers/")
+path = await downloader.download_paper(paper)
+
+# Download multiple papers
+results = await download_papers(papers, output_dir="papers/")
+```
+
+### Supported Sources
+
+- **arXiv**: Direct PDF URLs and abstract pages
+- **bioRxiv/medRxiv**: DOI-based downloads
+- **PubMed Central**: PMC ID downloads
+- **DOI resolution**: Follows DOI redirects to find PDFs
+
+### PDFDownloader Methods
+
+- `download(url, filename, overwrite)` - Download from any URL
+- `download_paper(paper, filename, overwrite)` - Download from Paper object
+- `download_from_doi(doi, filename, overwrite)` - Download by DOI
+- `download_from_arxiv(arxiv_id, filename, overwrite)` - Download from arXiv
+- `download_from_biorxiv_medrxiv(doi, filename, overwrite)` - Download from preprint servers
+- `download_from_pmc(pmc_id, filename, overwrite)` - Download from PubMed Central
+
 ---
 
 ## Configuration
@@ -564,27 +711,23 @@ asyncio.run(test())
 
 ### Feature Comparison
 
-| Feature                 | OpenAlex | Semantic Scholar | Crossref | Elsevier | Google Scholar | PubMed | Web of Science |
-|-------------------------|:--------:|:----------------:|:--------:|:--------:|:--------------:|:------:|:--------------:|
-| search()                |    ✓     |        ✓         |    ✓     |    ✓     |       ✓        |   ✓    |       ✓        |
-| search_with_cursor()    |    ✓     |        ✗         |    ✓     |    ✓     |       ✗        |   ✗    |       ✗        |
-| search_all()            |    ✓     |        ✓         |    ✓     |    ✓     |       ✓        |   ✓    |       ✓        |
-| get_paper()             |    ✓     |        ✓         |    ✓     |    ✓     |       ✓        |   ✓    |       ✓        |
-| get_paper_citations()   |    ✓     |        ✓         |    ✗     |    ✓     |       ✓        |   ✓    |       ✓        |
-| get_paper_references()  |    ✓     |        ✓         |    ✓     |    ✗     |       ✗        |   ✓    |       ✓        |
-| search_authors()        |    ✓     |        ✓         |    ✗     |    ✓     |       ✓        |   ✓    |       ✓        |
-| get_author()            |    ✓     |        ✓         |    ✗     |    ✓     |       ✓        |   ✗    |       ✗        |
-| get_author_papers()     |    ✓     |        ✓         |    ✗     |    ✓     |       ✓        |   ✓    |       ✓        |
-| search_institutions()   |    ✓     |        ✗         |    ✗     |    ✓     |       ✗        |   ✗    |       ✗        |
-| get_institution()       |    ✓     |        ✗         |    ✗     |    ✓     |       ✗        |   ✗    |       ✗        |
-| get_journal()           |    ✗     |        ✗         |    ✓     |    ✗     |       ✗        |   ✗    |       ✗        |
-| get_journal_works()     |    ✗     |        ✗         |    ✓     |    ✗     |       ✗        |   ✗    |       ✗        |
-| get_funder()            |    ✗     |        ✗         |    ✓     |    ✗     |       ✗        |   ✗    |       ✗        |
-| get_funder_works()      |    ✗     |        ✗         |    ✓     |    ✗     |       ✗        |   ✗    |       ✗        |
-| get_recommendations()   |    ✗     |        ✓         |    ✗     |    ✗     |       ✗        |   ✓    |       ✓        |
-| batch operations        |    ✗     |        ✓         |    ✗     |    ✗     |       ✗        |   ✗    |       ✗        |
-| **Requires API Key**    |    ✗     |      Optional    |    ✗     |    ✓     |       ✓        | Optional |       ✓        |
-| **Free**                |    ✓     |        ✓         |    ✓     |    ✗     |       ✗        |   ✓    |       ✗        |
+| Feature                 | OpenAlex | Semantic Scholar | Crossref | Elsevier | Google Scholar | PubMed | WoS | arXiv | bioRxiv | medRxiv | GS Scraper |
+|-------------------------|:--------:|:----------------:|:--------:|:--------:|:--------------:|:------:|:---:|:-----:|:-------:|:-------:|:----------:|
+| search()                |    ✓     |        ✓         |    ✓     |    ✓     |       ✓        |   ✓    |  ✓  |   ✓   |    ✓    |    ✓    |     ✓      |
+| search_with_cursor()    |    ✓     |        ✗         |    ✓     |    ✓     |       ✗        |   ✗    |  ✗  |   ✓   |    ✓    |    ✓    |     ✗      |
+| search_all()            |    ✓     |        ✓         |    ✓     |    ✓     |       ✓        |   ✓    |  ✓  |   ✓   |    ✓    |    ✓    |     ✓      |
+| get_paper()             |    ✓     |        ✓         |    ✓     |    ✓     |       ✓        |   ✓    |  ✓  |   ✓   |    ✓    |    ✓    |     ✓      |
+| get_paper_citations()   |    ✓     |        ✓         |    ✗     |    ✓     |       ✓        |   ✓    |  ✓  |   ✗   |    ✗    |    ✗    |     ✗      |
+| get_paper_references()  |    ✓     |        ✓         |    ✓     |    ✗     |       ✗        |   ✓    |  ✓  |   ✗   |    ✗    |    ✗    |     ✗      |
+| search_authors()        |    ✓     |        ✓         |    ✗     |    ✓     |       ✓        |   ✓    |  ✓  |   ✗   |    ✗    |    ✗    |     ✓      |
+| get_author()            |    ✓     |        ✓         |    ✗     |    ✓     |       ✓        |   ✗    |  ✗  |   ✗   |    ✗    |    ✗    |     ✓      |
+| get_author_papers()     |    ✓     |        ✓         |    ✗     |    ✓     |       ✓        |   ✓    |  ✓  |   ✗   |    ✗    |    ✗    |     ✗      |
+| search_institutions()   |    ✓     |        ✗         |    ✗     |    ✓     |       ✗        |   ✗    |  ✗  |   ✗   |    ✗    |    ✗    |     ✗      |
+| get_institution()       |    ✓     |        ✗         |    ✗     |    ✓     |       ✗        |   ✗    |  ✗  |   ✗   |    ✗    |    ✗    |     ✗      |
+| get_recent_papers()     |    ✗     |        ✗         |    ✗     |    ✗     |       ✗        |   ✗    |  ✗  |   ✗   |    ✓    |    ✓    |     ✗      |
+| search_by_category()    |    ✗     |        ✗         |    ✗     |    ✗     |       ✗        |   ✗    |  ✗  |   ✓   |    ✓    |    ✓    |     ✗      |
+| **Requires API Key**    |    ✗     |      Optional    |    ✗     |    ✓     |       ✓        | Optional |  ✓  |   ✗   |    ✗    |    ✗    |     ✗      |
+| **Free**                |    ✓     |        ✓         |    ✓     |    ✗     |       ✗        |   ✓    |  ✗  |   ✓   |    ✓    |    ✓    |     ✓      |
 
 ### Rate Limits
 
@@ -597,6 +740,10 @@ asyncio.run(test())
 | Google Scholar   | Key required              | ~$0.015/search                | 1 req/s         |
 | PubMed           | 3 req/s                   | 10 req/s                      | 3 req/s         |
 | Web of Science   | Key required              | Varies by subscription        | 2 req/s         |
+| arXiv            | 1 req/3s                  | N/A (no key needed)           | 0.33 req/s      |
+| bioRxiv          | No documented limit       | N/A (no key needed)           | 10 req/s        |
+| medRxiv          | No documented limit       | N/A (no key needed)           | 10 req/s        |
+| GS Scraper       | 1 req/5s (CAPTCHA risk)   | N/A (no key needed)           | 0.2 req/s       |
 
 ### Single Request Return Limits
 
@@ -611,6 +758,10 @@ asyncio.run(test())
 | Google Scholar   | search()                  | min(limit, 20)    | 20       |
 | PubMed           | search()                  | min(limit, 10000) | 10000    |
 | Web of Science   | search()                  | min(limit, 100)   | 100      |
+| arXiv            | search()                  | min(limit, 2000)  | 2000     |
+| bioRxiv          | search()                  | 100 per page      | 100      |
+| medRxiv          | search()                  | 100 per page      | 100      |
+| GS Scraper       | search()                  | 10 per page       | 10       |
 
 *Elsevier API supports up to 200, but code limits to 25 for safety.
 
@@ -625,6 +776,10 @@ asyncio.run(test())
 | Google Scholar   | 20          | No documented limit    | N/A                    | offset only     |
 | PubMed           | 10,000      | 10,000 (PubMed DB)     | N/A                    | offset only     |
 | Web of Science   | 100         | 100,000 (Starter)      | N/A                    | offset only     |
+| arXiv            | 2,000       | No hard limit          | N/A                    | offset only     |
+| bioRxiv          | 100         | No hard limit          | Date-based cursor      | cursor          |
+| medRxiv          | 100         | No hard limit          | Date-based cursor      | cursor          |
+| GS Scraper       | 10          | Unknown                | N/A                    | offset only     |
 
 **⚠️ Important Notes**:
 

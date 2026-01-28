@@ -1,9 +1,13 @@
 """API client adapters for Paper-Ladder."""
 
+from paper_ladder.clients.arxiv import ArxivClient
 from paper_ladder.clients.base import BaseClient
+from paper_ladder.clients.biorxiv import BiorxivClient
 from paper_ladder.clients.crossref import CrossrefClient
 from paper_ladder.clients.elsevier import ElsevierClient
 from paper_ladder.clients.google_scholar import GoogleScholarClient
+from paper_ladder.clients.google_scholar_scraper import GoogleScholarScraperClient
+from paper_ladder.clients.medrxiv import MedrxivClient
 from paper_ladder.clients.openalex import OpenAlexClient
 from paper_ladder.clients.pubmed import PubMedClient
 from paper_ladder.clients.semantic_scholar import SemanticScholarClient
@@ -11,10 +15,14 @@ from paper_ladder.clients.wos import WebOfScienceClient
 
 __all__ = [
     "CLIENTS",
+    "ArxivClient",
     "BaseClient",
+    "BiorxivClient",
     "CrossrefClient",
     "ElsevierClient",
     "GoogleScholarClient",
+    "GoogleScholarScraperClient",
+    "MedrxivClient",
     "OpenAlexClient",
     "PubMedClient",
     "SemanticScholarClient",
@@ -24,12 +32,16 @@ __all__ = [
 
 # Registry of available clients
 CLIENTS: dict[str, type[BaseClient]] = {
-    "openalex": OpenAlexClient,
-    "semantic_scholar": SemanticScholarClient,
+    "arxiv": ArxivClient,
+    "biorxiv": BiorxivClient,
+    "crossref": CrossrefClient,
     "elsevier": ElsevierClient,
     "google_scholar": GoogleScholarClient,
-    "crossref": CrossrefClient,
+    "google_scholar_scraper": GoogleScholarScraperClient,
+    "medrxiv": MedrxivClient,
+    "openalex": OpenAlexClient,
     "pubmed": PubMedClient,
+    "semantic_scholar": SemanticScholarClient,
     "wos": WebOfScienceClient,
 }
 

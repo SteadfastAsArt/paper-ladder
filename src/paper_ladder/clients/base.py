@@ -21,17 +21,17 @@ logger = logging.getLogger(__name__)
 
 # API limits and capabilities per source
 API_LIMITS: dict[str, dict] = {
-    "openalex": {
-        "per_request": 200,
-        "offset_max": 10000,
-        "cursor_support": True,
-        "note": "Use cursor pagination for >10,000 results",
-    },
-    "semantic_scholar": {
-        "per_request": 100,
-        "offset_max": 1000,  # Updated Oct 2024: offset + limit ≤ 1,000
+    "arxiv": {
+        "per_request": 2000,
+        "offset_max": None,  # No hard limit
         "cursor_support": False,
-        "note": "API limit: offset + limit ≤ 1,000 (reduced from 10,000)",
+        "note": "Rate limit: 1 request per 3 seconds",
+    },
+    "biorxiv": {
+        "per_request": 100,
+        "offset_max": None,  # No hard limit
+        "cursor_support": True,
+        "note": "Returns 100 results per page, paginate with cursor",
     },
     "crossref": {
         "per_request": 1000,
@@ -51,11 +51,35 @@ API_LIMITS: dict[str, dict] = {
         "cursor_support": False,
         "note": "Paid API (~$0.015/request)",
     },
+    "google_scholar_scraper": {
+        "per_request": 10,
+        "offset_max": None,
+        "cursor_support": False,
+        "note": "Free scraping, 1 req/5s rate limit, may trigger CAPTCHA",
+    },
+    "medrxiv": {
+        "per_request": 100,
+        "offset_max": None,  # No hard limit
+        "cursor_support": True,
+        "note": "Returns 100 results per page, paginate with cursor",
+    },
+    "openalex": {
+        "per_request": 200,
+        "offset_max": 10000,
+        "cursor_support": True,
+        "note": "Use cursor pagination for >10,000 results",
+    },
     "pubmed": {
         "per_request": 10000,
         "offset_max": 10000,
         "cursor_support": False,
         "note": "PubMed ESearch limited to first 10,000",
+    },
+    "semantic_scholar": {
+        "per_request": 100,
+        "offset_max": 1000,  # Updated Oct 2024: offset + limit ≤ 1,000
+        "cursor_support": False,
+        "note": "API limit: offset + limit ≤ 1,000 (reduced from 10,000)",
     },
     "wos": {
         "per_request": 100,
@@ -68,16 +92,16 @@ API_LIMITS: dict[str, dict] = {
 # Mapping from standard SortBy to API-specific sort parameters
 # None means the sort option is not supported by that API
 SORT_MAPPING: dict[str, dict[str, str | None]] = {
-    "openalex": {
-        "relevance": "relevance_score",
-        "citations": "cited_by_count:desc",
-        "date": "publication_date:desc",
-        "date_asc": "publication_date:asc",
+    "arxiv": {
+        "relevance": "relevance",
+        "citations": "_client_sort",  # arXiv doesn't have citation data
+        "date": "submittedDate",
+        "date_asc": "submittedDate",  # With sortOrder=ascending
     },
-    "semantic_scholar": {
-        # Semantic Scholar API doesn't support sorting - we do client-side sort
+    "biorxiv": {
+        # bioRxiv API doesn't support sorting - we do client-side sort
         "relevance": None,
-        "citations": "_client_sort",  # Special marker for client-side sorting
+        "citations": "_client_sort",
         "date": "_client_sort",
         "date_asc": "_client_sort",
     },
@@ -100,11 +124,38 @@ SORT_MAPPING: dict[str, dict[str, str | None]] = {
         "date": None,
         "date_asc": None,
     },
+    "google_scholar_scraper": {
+        # Free scraper doesn't support sorting - use client-side sort
+        "relevance": None,
+        "citations": "_client_sort",
+        "date": "_client_sort",
+        "date_asc": "_client_sort",
+    },
+    "medrxiv": {
+        # medRxiv API doesn't support sorting - we do client-side sort
+        "relevance": None,
+        "citations": "_client_sort",
+        "date": "_client_sort",
+        "date_asc": "_client_sort",
+    },
+    "openalex": {
+        "relevance": "relevance_score",
+        "citations": "cited_by_count:desc",
+        "date": "publication_date:desc",
+        "date_asc": "publication_date:asc",
+    },
     "pubmed": {
         "relevance": "relevance",
         "citations": None,  # PubMed doesn't have citation sort
         "date": "pub_date",
         "date_asc": "pub_date",  # PubMed only has date, not direction
+    },
+    "semantic_scholar": {
+        # Semantic Scholar API doesn't support sorting - we do client-side sort
+        "relevance": None,
+        "citations": "_client_sort",  # Special marker for client-side sorting
+        "date": "_client_sort",
+        "date_asc": "_client_sort",
     },
     "wos": {
         "relevance": "RS+D",
