@@ -547,12 +547,19 @@ path = await download_pdf(
     filename="attention_paper"
 )
 
-# Download from a Paper object
-downloader = PDFDownloader(output_dir="papers/")
+# Download from a Paper object (with Unpaywall for OA lookup)
+downloader = PDFDownloader(output_dir="papers/", unpaywall_email="your@email.com")
 path = await downloader.download_paper(paper)
 
-# Download multiple papers
-results = await download_papers(papers, output_dir="papers/")
+# Download multiple papers with Unpaywall support
+results = await download_papers(
+    papers,
+    output_dir="papers/",
+    unpaywall_email="your@email.com"
+)
+
+# Download by DOI with Unpaywall fallback
+path = await downloader.download_from_doi("10.1038/nature14539")
 ```
 
 ### Supported Sources
@@ -560,13 +567,33 @@ results = await download_papers(papers, output_dir="papers/")
 - **arXiv**: Direct PDF URLs and abstract pages
 - **bioRxiv/medRxiv**: DOI-based downloads
 - **PubMed Central**: PMC ID downloads
+- **Unpaywall**: Finds legal open access versions of paywalled papers
 - **DOI resolution**: Follows DOI redirects to find PDFs
+
+### Unpaywall Integration
+
+Unpaywall is a free service that finds legal open access versions of papers.
+To use it, provide your email address (register at https://unpaywall.org/products/api):
+
+```python
+downloader = PDFDownloader(
+    output_dir="papers/",
+    unpaywall_email="your@email.com"
+)
+
+# Automatically tries Unpaywall when downloading by DOI
+path = await downloader.download_from_doi("10.1038/nature14539")
+
+# Or query Unpaywall directly
+path = await downloader.download_from_unpaywall("10.1038/nature14539")
+```
 
 ### PDFDownloader Methods
 
 - `download(url, filename, overwrite)` - Download from any URL
 - `download_paper(paper, filename, overwrite)` - Download from Paper object
-- `download_from_doi(doi, filename, overwrite)` - Download by DOI
+- `download_from_doi(doi, filename, overwrite)` - Download by DOI (tries Unpaywall if configured)
+- `download_from_unpaywall(doi, filename, overwrite)` - Find and download OA version via Unpaywall
 - `download_from_arxiv(arxiv_id, filename, overwrite)` - Download from arXiv
 - `download_from_biorxiv_medrxiv(doi, filename, overwrite)` - Download from preprint servers
 - `download_from_pmc(pmc_id, filename, overwrite)` - Download from PubMed Central

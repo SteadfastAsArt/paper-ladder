@@ -33,6 +33,7 @@ class PDFDownloader:
     - bioRxiv (biorxiv.org)
     - medRxiv (medrxiv.org)
     - PubMed Central (ncbi.nlm.nih.gov/pmc)
+    - Unpaywall (api.unpaywall.org) - finds open access versions
     - DOI resolution (doi.org)
     """
 
@@ -41,6 +42,7 @@ class PDFDownloader:
         output_dir: str | Path = ".",
         timeout: float = 60.0,
         proxy: str | None = None,
+        unpaywall_email: str | None = None,
     ):
         """Initialize the downloader.
 
@@ -48,11 +50,14 @@ class PDFDownloader:
             output_dir: Directory to save downloaded PDFs.
             timeout: Request timeout in seconds.
             proxy: Optional proxy URL.
+            unpaywall_email: Email for Unpaywall API (required for Unpaywall lookups).
+                            Register at https://unpaywall.org/products/api
         """
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.timeout = timeout
         self.proxy = proxy
+        self.unpaywall_email = unpaywall_email
         self._user_agent_index = 0
 
     def _get_user_agent(self) -> str:
@@ -137,6 +142,11 @@ class PDFDownloader:
     ) -> Path | None:
         """Download a PDF for a Paper object.
 
+        Tries sources in order:
+        1. Direct pdf_url from paper
+        2. DOI lookup (includes Unpaywall if configured)
+        3. Regular URL
+
         Args:
             paper: Paper object with pdf_url, doi, or url.
             filename: Optional filename. If None, uses sanitized title.
@@ -151,7 +161,7 @@ class PDFDownloader:
             if result:
                 return result
 
-        # Try DOI
+        # Try DOI (includes Unpaywall lookup if email configured)
         if paper.doi:
             result = await self.download_from_doi(paper.doi, filename, overwrite)
             if result:
@@ -171,6 +181,7 @@ class PDFDownloader:
         doi: str,
         filename: str | None = None,
         overwrite: bool = False,
+        try_unpaywall: bool = True,
     ) -> Path | None:
         """Download a PDF by DOI.
 
@@ -178,6 +189,7 @@ class PDFDownloader:
             doi: DOI string.
             filename: Optional filename.
             overwrite: Whether to overwrite existing files.
+            try_unpaywall: Whether to try Unpaywall for open access versions.
 
         Returns:
             Path to downloaded file, or None if download failed.
@@ -197,11 +209,99 @@ class PDFDownloader:
 
         # Check for bioRxiv/medRxiv DOI
         if "10.1101" in doi:
-            return await self.download_from_biorxiv_medrxiv(doi, filename, overwrite)
+            result = await self.download_from_biorxiv_medrxiv(doi, filename, overwrite)
+            if result:
+                return result
+
+        # Try Unpaywall for open access version
+        if try_unpaywall and self.unpaywall_email:
+            result = await self.download_from_unpaywall(doi, filename, overwrite)
+            if result:
+                return result
 
         # Try to resolve via DOI
         url = f"https://doi.org/{doi}"
         return await self.download(url, filename, overwrite)
+
+    async def download_from_unpaywall(
+        self,
+        doi: str,
+        filename: str | None = None,
+        overwrite: bool = False,
+    ) -> Path | None:
+        """Download a PDF using Unpaywall to find open access versions.
+
+        Unpaywall is a free service that finds legal open access versions of papers.
+        API docs: https://unpaywall.org/products/api
+
+        Args:
+            doi: DOI string (without URL prefix).
+            filename: Optional filename.
+            overwrite: Whether to overwrite existing files.
+
+        Returns:
+            Path to downloaded file, or None if no OA version found.
+        """
+        if not self.unpaywall_email:
+            logger.debug("Unpaywall email not configured, skipping Unpaywall lookup")
+            return None
+
+        # Normalize DOI
+        doi = doi.strip()
+        for prefix in ["https://doi.org/", "http://doi.org/", "doi:"]:
+            if doi.lower().startswith(prefix.lower()):
+                doi = doi[len(prefix) :]
+                break
+
+        api_url = f"https://api.unpaywall.org/v2/{doi}"
+        params = {"email": self.unpaywall_email}
+
+        try:
+            async with self._get_client() as client:
+                response = await client.get(api_url, params=params)
+
+                if response.status_code == 404:
+                    logger.debug(f"DOI not found in Unpaywall: {doi}")
+                    return None
+
+                response.raise_for_status()
+                data = response.json()
+
+                # Check if open access
+                if not data.get("is_oa"):
+                    logger.debug(f"No open access version found for: {doi}")
+                    return None
+
+                # Try best OA location first
+                best_location = data.get("best_oa_location", {})
+                pdf_url = best_location.get("url_for_pdf")
+
+                if not pdf_url:
+                    # Try other OA locations
+                    for location in data.get("oa_locations", []):
+                        pdf_url = location.get("url_for_pdf")
+                        if pdf_url:
+                            break
+
+                if not pdf_url:
+                    # Fall back to landing page URL
+                    pdf_url = best_location.get("url")
+                    if pdf_url:
+                        logger.info(f"No direct PDF URL, trying landing page: {pdf_url}")
+
+                if pdf_url:
+                    logger.info(f"Found OA version via Unpaywall: {pdf_url}")
+                    return await self.download(pdf_url, filename, overwrite)
+
+                logger.debug(f"No PDF URL in Unpaywall response for: {doi}")
+                return None
+
+        except httpx.HTTPStatusError as e:
+            logger.debug(f"Unpaywall API error for {doi}: {e.response.status_code}")
+            return None
+        except Exception as e:
+            logger.debug(f"Error querying Unpaywall for {doi}: {e}")
+            return None
 
     async def download_from_arxiv(
         self,
@@ -394,6 +494,7 @@ async def download_pdf(
     overwrite: bool = False,
     timeout: float = 60.0,
     proxy: str | None = None,
+    unpaywall_email: str | None = None,
 ) -> Path | None:
     """Convenience function to download a single PDF.
 
@@ -404,11 +505,12 @@ async def download_pdf(
         overwrite: Whether to overwrite existing files.
         timeout: Request timeout in seconds.
         proxy: Optional proxy URL.
+        unpaywall_email: Email for Unpaywall API lookups.
 
     Returns:
         Path to downloaded file, or None if download failed.
     """
-    downloader = PDFDownloader(output_dir, timeout, proxy)
+    downloader = PDFDownloader(output_dir, timeout, proxy, unpaywall_email)
     return await downloader.download(url, filename, overwrite)
 
 
@@ -418,6 +520,7 @@ async def download_papers(
     overwrite: bool = False,
     timeout: float = 60.0,
     proxy: str | None = None,
+    unpaywall_email: str | None = None,
 ) -> dict[str, Path | None]:
     """Download PDFs for multiple papers.
 
@@ -427,11 +530,12 @@ async def download_papers(
         overwrite: Whether to overwrite existing files.
         timeout: Request timeout in seconds.
         proxy: Optional proxy URL.
+        unpaywall_email: Email for Unpaywall API lookups (finds open access versions).
 
     Returns:
         Dictionary mapping paper titles to downloaded file paths (or None if failed).
     """
-    downloader = PDFDownloader(output_dir, timeout, proxy)
+    downloader = PDFDownloader(output_dir, timeout, proxy, unpaywall_email)
     results: dict[str, Path | None] = {}
 
     for paper in papers:
