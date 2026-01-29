@@ -26,14 +26,18 @@ A Python library for searching academic paper metadata from multiple APIs and ex
 | **Web of Science** | Required | ~2/sec | ✓ | ✓ | - | ✓ | Citation analysis, impact metrics |
 | **Elsevier (Scopus)** | Required | ~2/sec | ✓ | ✓ | ✓ | ✓ | Full-text access |
 | **Google Scholar** | Required (SerpAPI) | $0.015/call | ✓ | ✓ | - | ✓ | Broadest coverage |
+| **arXiv** | Not required | 1/3 sec | ✓ | - | - | - | Physics/Math/CS preprints, direct PDF |
+| **bioRxiv** | Not required | ~10/sec | ✓ | - | - | - | Biology preprints, date-based search |
+| **medRxiv** | Not required | ~10/sec | ✓ | - | - | - | Health sciences preprints |
+| **GS Scraper** | Not required | 1/5 sec | ✓ | ✓ | - | - | Free Google Scholar, may trigger CAPTCHA |
 
 ### Comparison
 
-| Metric | OpenAlex | Semantic Scholar | Crossref | PubMed | Web of Science | Elsevier | Google Scholar |
-|--------|----------|------------------|----------|--------|----------------|----------|----------------|
-| **Max per request** | 200 | 100 | 1,000 | 10,000 | 100 | 25 | 20 |
-| **Max offset** | 10,000 | 10,000 | cursor | 10,000 | 100,000 | 5,000 | ~100 |
-| **Free** | ✓ | ✓ | ✓ | ✓ | ✗ | ✗ | ✗ |
+| Metric | OpenAlex | Semantic Scholar | Crossref | PubMed | Web of Science | Elsevier | Google Scholar | arXiv | bioRxiv | medRxiv | GS Scraper |
+|--------|----------|------------------|----------|--------|----------------|----------|----------------|-------|---------|---------|------------|
+| **Max per request** | 200 | 100 | 1,000 | 10,000 | 100 | 25 | 20 | 2,000 | 100 | 100 | 10 |
+| **Max offset** | 10,000 | 1,000 | cursor | 10,000 | 100,000 | 5,000 | ~100 | ∞ | cursor | cursor | ~100 |
+| **Free** | ✓ | ✓ | ✓ | ✓ | ✗ | ✗ | ✗ | ✓ | ✓ | ✓ | ✓ |
 
 **Citation counts for the same paper** (Deep Learning, LeCun 2015):
 - Semantic Scholar: ~162,000 (includes preprints)
@@ -77,6 +81,9 @@ default_sources:
   - crossref
   - semantic_scholar
   - pubmed
+  - arxiv              # Preprint server
+  - biorxiv            # Biology preprints
+  - medrxiv            # Health sciences preprints
 
 # Rate limits (requests per second)
 rate_limits:
@@ -87,6 +94,10 @@ rate_limits:
   wos: 2
   elsevier: 5
   google_scholar: 1
+  arxiv: 0.33           # 1 request per 3 seconds
+  biorxiv: 10
+  medrxiv: 10
+  google_scholar_scraper: 0.2  # 1 request per 5 seconds (CAPTCHA risk)
 ```
 
 ### CLI Usage
@@ -397,6 +408,86 @@ async with WebOfScienceClient() as client:
 
 **Note**: Requires institutional subscription. Get API key from developer.clarivate.com.
 
+### arXiv (Free, No API Key)
+
+Open access preprints in physics, mathematics, computer science, and more.
+
+```python
+from paper_ladder.clients import ArxivClient
+
+async with ArxivClient() as client:
+    # Search papers
+    papers = await client.search("transformer attention", limit=20)
+
+    # Search by category
+    papers = await client.search_by_category("cs.AI", query="attention", limit=10)
+
+    # Search by author
+    papers = await client.search_by_author("Hinton", limit=10)
+
+    # Get paper by arXiv ID
+    paper = await client.get_paper("2301.07041")
+
+    # Cursor-based pagination for large results
+    async for paper in client.search_with_cursor("machine learning", max_results=5000):
+        print(paper.title)
+```
+
+**Note**: Rate limit is 1 request per 3 seconds. Direct PDF access available.
+
+### bioRxiv / medRxiv (Free, No API Key)
+
+Open access preprints in biology and health sciences.
+
+```python
+from paper_ladder.clients import BiorxivClient, MedrxivClient
+
+async with BiorxivClient() as client:
+    # Search papers (client-side filtering)
+    papers = await client.search("CRISPR", limit=20, days=30)
+
+    # Search by date range
+    papers = await client.search_by_date("2024-01-01", "2024-01-31", limit=100)
+
+    # Get recent papers
+    papers = await client.get_recent_papers(days=7, limit=50)
+
+    # Search by category
+    papers = await client.search_by_category("genomics", limit=20)
+
+    # Get paper by DOI
+    paper = await client.get_paper("10.1101/2024.01.01.123456")
+
+# medRxiv has the same API
+async with MedrxivClient() as client:
+    papers = await client.search("COVID-19", limit=20)
+```
+
+**Note**: API uses date-based retrieval; full-text search is done client-side.
+
+### Google Scholar Scraper (Free, No API Key)
+
+Free alternative to SerpAPI for Google Scholar searches.
+
+```python
+from paper_ladder.clients import GoogleScholarScraperClient
+
+async with GoogleScholarScraperClient() as client:
+    # Search papers
+    papers = await client.search("machine learning", limit=20)
+
+    # Search by author
+    papers = await client.search_author("Geoffrey Hinton", limit=10)
+
+    # Get author profile by Google Scholar ID
+    author = await client.get_author_profile("dkZ6M2sAAAAJ")
+
+    # Search with year filter
+    papers = await client.search("deep learning", limit=10, year_low=2020, year_high=2024)
+```
+
+**Warning**: Web scraping may violate Google's Terms of Service. Use responsibly for educational and research purposes. May trigger CAPTCHA with heavy use. Consider SerpAPI for production.
+
 **Common Funder IDs**:
 | Funder | ID | Papers |
 |--------|-----|--------|
@@ -471,6 +562,75 @@ extractor = HTMLExtractor()
 content = await extractor.extract("https://example.com/paper.html")
 print(content.markdown)
 print(content.metadata)
+```
+
+## PDF Download
+
+Download PDFs from various academic sources with automatic URL resolution and open access fallback.
+
+```python
+from paper_ladder.downloader import PDFDownloader, download_pdf, download_papers
+
+# Simple download
+path = await download_pdf("https://arxiv.org/pdf/2301.07041.pdf", output_dir="papers/")
+
+# Download with custom filename
+path = await download_pdf(
+    "https://arxiv.org/abs/2301.07041",
+    output_dir="papers/",
+    filename="attention_paper"
+)
+
+# Create downloader with Unpaywall for open access lookup
+downloader = PDFDownloader(
+    output_dir="papers/",
+    unpaywall_email="your@email.com"  # Register at unpaywall.org
+)
+
+# Download from a Paper object
+path = await downloader.download_paper(paper)
+
+# Download by DOI (automatically tries Unpaywall for paywalled papers)
+path = await downloader.download_from_doi("10.1038/nature14539")
+
+# Download from specific sources
+path = await downloader.download_from_arxiv("2301.07041")
+path = await downloader.download_from_biorxiv_medrxiv("10.1101/2024.01.01.123456")
+path = await downloader.download_from_pmc("PMC1234567")
+
+# Download directly via Unpaywall
+path = await downloader.download_from_unpaywall("10.1038/nature14539")
+
+# Batch download multiple papers
+results = await download_papers(
+    papers,
+    output_dir="papers/",
+    unpaywall_email="your@email.com"
+)
+for title, path in results.items():
+    print(f"{title}: {path or 'Failed'}")
+```
+
+### Supported Sources
+
+- **arXiv** - ID or URL (`arxiv.org/abs/...` or `arxiv.org/pdf/...`)
+- **bioRxiv / medRxiv** - DOI-based downloads
+- **PubMed Central** - PMC ID downloads
+- **Unpaywall** - Finds legal open access versions of paywalled papers
+- **DOI resolution** - Follows DOI redirects to find PDFs
+
+### Unpaywall Integration
+
+[Unpaywall](https://unpaywall.org) is a free service that finds legal open access versions of papers. To use it:
+
+1. Register your email at https://unpaywall.org/products/api
+2. Pass your email to the downloader:
+
+```python
+downloader = PDFDownloader(output_dir="papers/", unpaywall_email="your@email.com")
+
+# Now download_from_doi automatically tries Unpaywall for paywalled papers
+path = await downloader.download_from_doi("10.1038/nature14539")
 ```
 
 ## Documentation
