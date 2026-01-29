@@ -8,6 +8,7 @@ serpapi_api_key: ""   # Required for Google Scholar (via SerpAPI)
 semantic_scholar_api_key: ""  # Optional, for higher rate limits (1 req/sec vs 100/5min)
 pubmed_api_key: ""  # Optional, for higher rate limits (10 req/s vs 3 req/s). Get from NCBI account settings.
 wos_api_key: ""  # Required for Web of Science. Get from developer.clarivate.com with institutional subscription.
+core_api_key: ""  # Free key for CORE API. Get from https://core.ac.uk/register
 
 # Crossref polite pool email - HIGHLY RECOMMENDED for better rate limits
 crossref_mailto: ""  # Your email for Crossref polite pool (avoids rate limiting)
@@ -35,6 +36,9 @@ rate_limits:
   crossref: 50
   pubmed: 3  # 3 without key, 10 with key
   wos: 2
+  dblp: 1  # DBLP recommends 1 req/s
+  doaj: 5  # DOAJ doesn't specify, using conservative default
+  core: 10  # CORE allows 10,000 req/day (~0.12 req/s, using burst rate)
 
 # Auto-pagination limits (max results per source for search_all())
 # For sources with cursor support, higher limits are possible
@@ -46,9 +50,25 @@ pagination_limits:
   google_scholar: 100   # Paid API (~$0.015/request), limit to control costs
   pubmed: 10000         # ESearch hard limit
   wos: 10000            # Based on subscription tier
+  dblp: 10000           # DBLP doesn't specify limits
+  doaj: 10000           # DOAJ supports cursor pagination
+  core: 10000           # CORE allows large result sets
 
 # Enable auto-pagination in search_all()
 auto_pagination: true
+
+# Retry settings (exponential backoff for failed requests)
+retry:
+  max_retries: 3        # Maximum number of retry attempts
+  base_delay: 1.0       # Initial delay in seconds
+  max_delay: 60.0       # Maximum delay between retries
+  exponential_base: 2.0 # Multiplier for exponential backoff
+  jitter: true          # Add random jitter to prevent thundering herd
+
+# Download settings
+download:
+  max_concurrent: 5     # Maximum concurrent PDF downloads
+  timeout: 60.0         # Download timeout in seconds
 
 # Output settings
 output_dir: "./output"

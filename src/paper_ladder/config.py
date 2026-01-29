@@ -20,6 +20,16 @@ class ProxyConfig(BaseModel):
     https: str | None = None
 
 
+class RetrySettings(BaseModel):
+    """Retry configuration for HTTP requests."""
+
+    max_retries: int = 3
+    base_delay: float = 1.0
+    max_delay: float = 60.0
+    exponential_base: float = 2.0
+    jitter: bool = True
+
+
 class RateLimits(BaseModel):
     """Rate limits per source (requests per second)."""
 
@@ -30,6 +40,9 @@ class RateLimits(BaseModel):
     crossref: float = 50  # Polite pool allows higher rates
     pubmed: float = 3  # 3 req/s without key, 10 req/s with key
     wos: float = 2  # 2 req/s per Clarivate guidelines
+    dblp: float = 1  # DBLP recommends 1 req/s
+    doaj: float = 5  # DOAJ doesn't specify, using conservative default
+    core: float = 10  # CORE allows 10,000 req/day (~0.12 req/s, using burst rate)
 
 
 class PaginationLimits(BaseModel):
@@ -46,6 +59,16 @@ class PaginationLimits(BaseModel):
     google_scholar: int = 100  # Paid API, limit to control costs
     pubmed: int = 10000  # ESearch hard limit
     wos: int = 10000  # Based on subscription tier
+    dblp: int = 10000  # DBLP doesn't specify limits
+    doaj: int = 10000  # DOAJ supports cursor pagination
+    core: int = 10000  # CORE allows large result sets
+
+
+class DownloadSettings(BaseModel):
+    """Download configuration settings."""
+
+    max_concurrent: int = 5  # Max concurrent downloads
+    timeout: float = 60.0  # Request timeout in seconds
 
 
 class Config(BaseModel):
@@ -58,6 +81,7 @@ class Config(BaseModel):
     pubmed_api_key: str | None = None  # Optional, for higher rate limits (10 req/s vs 3 req/s)
     wos_api_key: str | None = None  # Required for Web of Science API
     openalex_api_key: str | None = None  # Free API key for 100k credits/day
+    core_api_key: str | None = None  # Free API key from https://core.ac.uk/api
 
     # Crossref polite pool email (highly recommended for better rate limits)
     crossref_mailto: str | None = None
@@ -80,6 +104,12 @@ class Config(BaseModel):
 
     # Enable auto-pagination in search_all()
     auto_pagination: bool = True
+
+    # Retry settings (exponential backoff)
+    retry: RetrySettings = Field(default_factory=RetrySettings)
+
+    # Download settings
+    download: DownloadSettings = Field(default_factory=DownloadSettings)
 
     # Output settings
     output_dir: str = "./output"

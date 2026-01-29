@@ -3,7 +3,10 @@
 from paper_ladder.clients.arxiv import ArxivClient
 from paper_ladder.clients.base import BaseClient
 from paper_ladder.clients.biorxiv import BiorxivClient
+from paper_ladder.clients.core import COREClient
 from paper_ladder.clients.crossref import CrossrefClient
+from paper_ladder.clients.dblp import DBLPClient
+from paper_ladder.clients.doaj import DOAJClient
 from paper_ladder.clients.elsevier import ElsevierClient
 from paper_ladder.clients.google_scholar import GoogleScholarClient
 from paper_ladder.clients.google_scholar_scraper import GoogleScholarScraperClient
@@ -18,7 +21,10 @@ __all__ = [
     "ArxivClient",
     "BaseClient",
     "BiorxivClient",
+    "COREClient",
     "CrossrefClient",
+    "DBLPClient",
+    "DOAJClient",
     "ElsevierClient",
     "GoogleScholarClient",
     "GoogleScholarScraperClient",
@@ -34,7 +40,10 @@ __all__ = [
 CLIENTS: dict[str, type[BaseClient]] = {
     "arxiv": ArxivClient,
     "biorxiv": BiorxivClient,
+    "core": COREClient,
     "crossref": CrossrefClient,
+    "dblp": DBLPClient,
+    "doaj": DOAJClient,
     "elsevier": ElsevierClient,
     "google_scholar": GoogleScholarClient,
     "google_scholar_scraper": GoogleScholarScraperClient,

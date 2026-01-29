@@ -521,8 +521,9 @@ async def download_papers(
     timeout: float = 60.0,
     proxy: str | None = None,
     unpaywall_email: str | None = None,
+    max_concurrent: int = 5,
 ) -> dict[str, Path | None]:
-    """Download PDFs for multiple papers.
+    """Download PDFs for multiple papers with parallel downloads.
 
     Args:
         papers: List of Paper objects.
@@ -531,19 +532,32 @@ async def download_papers(
         timeout: Request timeout in seconds.
         proxy: Optional proxy URL.
         unpaywall_email: Email for Unpaywall API lookups (finds open access versions).
+        max_concurrent: Maximum number of concurrent downloads (default: 5).
 
     Returns:
         Dictionary mapping paper titles to downloaded file paths (or None if failed).
     """
+    import asyncio
+
     downloader = PDFDownloader(output_dir, timeout, proxy, unpaywall_email)
-    results: dict[str, Path | None] = {}
+    semaphore = asyncio.Semaphore(max_concurrent)
 
-    for paper in papers:
-        # Generate safe filename from title
-        safe_title = re.sub(r"[^\w\s-]", "", paper.title or "untitled")
-        safe_title = re.sub(r"\s+", "_", safe_title)[:100]
+    async def download_one(paper: Paper) -> tuple[str, Path | None]:
+        """Download a single paper with semaphore control."""
+        async with semaphore:
+            # Generate safe filename from title
+            safe_title = re.sub(r"[^\w\s-]", "", paper.title or "untitled")
+            safe_title = re.sub(r"\s+", "_", safe_title)[:100]
 
-        path = await downloader.download_paper(paper, safe_title, overwrite)
-        results[paper.title or "untitled"] = path
+            try:
+                path = await downloader.download_paper(paper, safe_title, overwrite)
+                return (paper.title or "untitled", path)
+            except Exception as e:
+                logger.error(f"Error downloading '{paper.title}': {e}")
+                return (paper.title or "untitled", None)
 
-    return results
+    # Run all downloads concurrently
+    tasks = [download_one(paper) for paper in papers]
+    results_list = await asyncio.gather(*tasks, return_exceptions=False)
+
+    return dict(results_list)

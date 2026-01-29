@@ -3,11 +3,228 @@
 from __future__ import annotations
 
 import asyncio
+from typing import Any
 
 from paper_ladder.clients import CLIENTS, BaseClient
 from paper_ladder.config import Config, get_config
 from paper_ladder.models import Paper, SearchResult
 from paper_ladder.utils import normalize_doi, normalize_title
+
+# ============================================================================
+# Smart Merger
+# ============================================================================
+
+
+class SmartMerger:
+    """Intelligently merge paper metadata from multiple sources.
+
+    Different sources have different strengths for different fields.
+    This class selects the best value for each field based on source priorities.
+    """
+
+    # Source priorities for different fields (higher priority = preferred)
+    # Sources not listed will have lowest priority
+    FIELD_PRIORITIES: dict[str, list[str]] = {
+        # DOI is most authoritative from Crossref
+        "doi": ["crossref", "openalex", "semantic_scholar", "pubmed", "wos"],
+        # Abstract quality varies - S2 and OpenAlex often have clean abstracts
+        "abstract": ["semantic_scholar", "openalex", "pubmed", "crossref", "core"],
+        # Citation counts - S2 includes preprints, OpenAlex is comprehensive
+        "citations_count": ["semantic_scholar", "openalex", "wos", "elsevier"],
+        # Author lists - Crossref is authoritative, OpenAlex disambiguates well
+        "authors": ["crossref", "openalex", "semantic_scholar", "pubmed"],
+        # Keywords/subjects
+        "keywords": ["semantic_scholar", "openalex", "pubmed", "crossref"],
+        # PDF URLs - open access sources
+        "pdf_url": ["core", "openalex", "semantic_scholar", "doaj", "arxiv", "biorxiv"],
+        # Open access status
+        "open_access": ["openalex", "doaj", "core", "semantic_scholar"],
+        # Journal/venue information
+        "journal": ["crossref", "openalex", "pubmed", "semantic_scholar"],
+        # Year - most authoritative from Crossref
+        "year": ["crossref", "openalex", "pubmed", "semantic_scholar"],
+        # Reference count
+        "references_count": ["semantic_scholar", "crossref", "openalex"],
+    }
+
+    def __init__(self, strategy: str = "best"):
+        """Initialize the merger.
+
+        Args:
+            strategy: Merge strategy:
+                - "best": Select the best value for each field based on priorities
+                - "union": Combine values (for list fields like keywords)
+        """
+        self.strategy = strategy
+
+    def merge_papers(self, papers: list[Paper]) -> Paper:
+        """Merge multiple Paper objects into one with the best data.
+
+        Args:
+            papers: List of papers from different sources.
+
+        Returns:
+            Merged paper with best available data from each source.
+        """
+        if not papers:
+            raise ValueError("No papers to merge")
+
+        if len(papers) == 1:
+            return papers[0]
+
+        # Create source -> paper mapping for quick lookup
+        source_papers: dict[str, Paper] = {}
+        for paper in papers:
+            # Handle comma-separated sources (from previous merges)
+            sources = paper.source.split(",")
+            for source in sources:
+                source = source.strip()
+                if source not in source_papers:
+                    source_papers[source] = paper
+
+        # Select best values for each field
+        merged_data: dict[str, Any] = {}
+
+        # Simple string fields
+        for field in ["doi", "abstract", "journal", "url"]:
+            merged_data[field] = self._select_best_value(field, papers, source_papers)
+
+        # Year (integer)
+        merged_data["year"] = self._select_best_value("year", papers, source_papers)
+
+        # Title - use the first non-empty title (they should all be the same)
+        merged_data["title"] = next((p.title for p in papers if p.title), papers[0].title)
+
+        # Authors - prefer more complete author lists
+        merged_data["authors"] = self._merge_authors(papers, source_papers)
+
+        # PDF URL - try multiple sources
+        merged_data["pdf_url"] = self._select_best_value("pdf_url", papers, source_papers)
+
+        # Citation count - prefer higher counts (they're usually more complete)
+        merged_data["citations_count"] = self._select_max_value("citations_count", papers)
+
+        # Reference count
+        merged_data["references_count"] = self._select_max_value("references_count", papers)
+
+        # Open access - if any source says it's OA, it probably is
+        merged_data["open_access"] = any(p.open_access for p in papers if p.open_access is not None)
+
+        # Keywords - union of all keywords
+        merged_data["keywords"] = self._merge_keywords(papers)
+
+        # Source - combine all sources
+        all_sources = sorted(set(p.source for p in papers))
+        merged_data["source"] = ",".join(all_sources)
+
+        # Raw data - store all source data
+        merged_data["raw_data"] = {
+            "merged_from": [{"source": p.source, "data": p.raw_data} for p in papers]
+        }
+
+        return Paper(**merged_data)
+
+    def _select_best_value(
+        self,
+        field: str,
+        papers: list[Paper],
+        source_papers: dict[str, Paper],
+    ) -> Any:
+        """Select the best value for a field based on source priorities.
+
+        Args:
+            field: Field name.
+            papers: All papers.
+            source_papers: Mapping of source to paper.
+
+        Returns:
+            Best value for the field.
+        """
+        priorities = self.FIELD_PRIORITIES.get(field, [])
+
+        # Try sources in priority order
+        for source in priorities:
+            if source in source_papers:
+                value = getattr(source_papers[source], field, None)
+                if value:  # Non-empty value
+                    return value
+
+        # Fall back to first non-empty value from any source
+        for paper in papers:
+            value = getattr(paper, field, None)
+            if value:
+                return value
+
+        return None
+
+    def _select_max_value(self, field: str, papers: list[Paper]) -> int | None:
+        """Select the maximum numeric value for a field.
+
+        Args:
+            field: Field name.
+            papers: All papers.
+
+        Returns:
+            Maximum value or None.
+        """
+        values = [getattr(p, field) for p in papers if getattr(p, field) is not None]
+        return max(values) if values else None
+
+    def _merge_authors(
+        self,
+        papers: list[Paper],
+        source_papers: dict[str, Paper],
+    ) -> list[str]:
+        """Merge author lists, preferring more complete lists.
+
+        Args:
+            papers: All papers.
+            source_papers: Mapping of source to paper.
+
+        Returns:
+            Best author list.
+        """
+        priorities = self.FIELD_PRIORITIES.get("authors", [])
+
+        # Try sources in priority order, picking the longest list from priority sources
+        best_authors: list[str] = []
+        best_priority = -1
+
+        for i, source in enumerate(priorities):
+            if source in source_papers:
+                authors = source_papers[source].authors
+                if len(authors) > len(best_authors):
+                    best_authors = authors
+                    best_priority = i
+
+        # Check remaining sources for longer lists
+        for paper in papers:
+            if paper.source not in priorities and len(paper.authors) > len(best_authors):
+                best_authors = paper.authors
+
+        return best_authors if best_authors else papers[0].authors
+
+    def _merge_keywords(self, papers: list[Paper]) -> list[str]:
+        """Merge keywords from all sources, removing duplicates.
+
+        Args:
+            papers: All papers.
+
+        Returns:
+            Merged unique keywords.
+        """
+        all_keywords: set[str] = set()
+
+        for paper in papers:
+            for keyword in paper.keywords:
+                # Normalize keyword for deduplication
+                normalized = keyword.strip().lower()
+                # Add original casing if not seen before
+                if normalized not in {k.lower() for k in all_keywords}:
+                    all_keywords.add(keyword.strip())
+
+        # Limit to 20 keywords
+        return list(all_keywords)[:20]
 
 
 class Aggregator:
@@ -17,16 +234,21 @@ class Aggregator:
         self,
         sources: list[str] | None = None,
         config: Config | None = None,
+        merge_strategy: str = "best",
     ):
         """Initialize the aggregator.
 
         Args:
             sources: List of source names to query. If None, uses config defaults.
             config: Configuration object. If None, loads from default location.
+            merge_strategy: Strategy for merging paper metadata:
+                - "best": Select best value for each field (default)
+                - "union": Combine values where possible
         """
         self.config = config or get_config()
         self.sources = sources or self.config.default_sources
         self._clients: dict[str, BaseClient] = {}
+        self.merger = SmartMerger(strategy=merge_strategy)
 
     def _get_client(self, source: str) -> BaseClient:
         """Get or create a client for the given source.
@@ -231,70 +453,16 @@ class Aggregator:
     def _merge_papers(self, papers: list[Paper]) -> Paper:
         """Merge multiple Paper objects into one with the best data.
 
+        Uses SmartMerger for intelligent field-level merging based on
+        source reliability for each field type.
+
         Args:
             papers: List of papers to merge.
 
         Returns:
             Merged paper with best available data.
         """
-        if not papers:
-            raise ValueError("No papers to merge")
-
-        if len(papers) == 1:
-            return papers[0]
-
-        # Start with the first paper as base
-        base = papers[0]
-
-        # Collect best values from all papers
-        best_abstract = base.abstract
-        best_authors = base.authors
-        best_pdf_url = base.pdf_url
-        best_citations = base.citations_count
-        all_keywords: set[str] = set(base.keywords)
-        sources: list[str] = [base.source]
-
-        for paper in papers[1:]:
-            sources.append(paper.source)
-
-            # Prefer longer abstract
-            if paper.abstract and (not best_abstract or len(paper.abstract) > len(best_abstract)):
-                best_abstract = paper.abstract
-
-            # Prefer more authors
-            if len(paper.authors) > len(best_authors):
-                best_authors = paper.authors
-
-            # Get PDF URL if missing
-            if not best_pdf_url and paper.pdf_url:
-                best_pdf_url = paper.pdf_url
-
-            # Get higher citation count
-            if paper.citations_count and (
-                not best_citations or paper.citations_count > best_citations
-            ):
-                best_citations = paper.citations_count
-
-            # Merge keywords
-            all_keywords.update(paper.keywords)
-
-        # Create merged paper
-        return Paper(
-            title=base.title,
-            authors=best_authors,
-            abstract=best_abstract,
-            doi=base.doi,
-            year=base.year,
-            journal=base.journal,
-            url=base.url,
-            pdf_url=best_pdf_url,
-            source=",".join(sources),
-            raw_data={"merged_from": [p.raw_data for p in papers]},
-            citations_count=best_citations,
-            references_count=base.references_count,
-            open_access=any(p.open_access for p in papers if p.open_access is not None),
-            keywords=list(all_keywords),
-        )
+        return self.merger.merge_papers(papers)
 
     async def close(self) -> None:
         """Close all client connections."""

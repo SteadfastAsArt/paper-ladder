@@ -11,8 +11,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from paper_ladder.clients.base import BaseClient
-from paper_ladder.clients.base import sort_papers
+from paper_ladder.clients.base import BaseClient, sort_papers
 from paper_ladder.models import Author, Paper, SortBy
 from paper_ladder.utils import clean_html_text, is_pdf_url, normalize_doi
 

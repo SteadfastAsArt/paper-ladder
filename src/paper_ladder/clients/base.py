@@ -10,6 +10,7 @@ import httpx
 
 from paper_ladder.config import get_config
 from paper_ladder.models import Paper, SortBy
+from paper_ladder.retry import RetryConfig, RetryHandler
 from paper_ladder.utils import RateLimiter
 
 if TYPE_CHECKING:
@@ -33,11 +34,29 @@ API_LIMITS: dict[str, dict] = {
         "cursor_support": True,
         "note": "Returns 100 results per page, paginate with cursor",
     },
+    "core": {
+        "per_request": 100,
+        "offset_max": None,  # No hard limit
+        "cursor_support": True,
+        "note": "10,000 requests/day, free API key required",
+    },
     "crossref": {
         "per_request": 1000,
         "offset_max": None,  # No hard limit, but cursor recommended
         "cursor_support": True,
         "note": "Cursor expires after 5 minutes",
+    },
+    "dblp": {
+        "per_request": 1000,
+        "offset_max": None,  # No hard limit
+        "cursor_support": True,
+        "note": "1 request per second recommended",
+    },
+    "doaj": {
+        "per_request": 100,
+        "offset_max": None,  # No hard limit
+        "cursor_support": True,
+        "note": "All content is open access",
     },
     "elsevier": {
         "per_request": 200,
@@ -105,11 +124,30 @@ SORT_MAPPING: dict[str, dict[str, str | None]] = {
         "date": "_client_sort",
         "date_asc": "_client_sort",
     },
+    "core": {
+        "relevance": None,  # Default
+        "citations": "citationCount",
+        "date": "yearPublished",
+        "date_asc": "yearPublished",  # Direction in sort object
+    },
     "crossref": {
         "relevance": "relevance",
         "citations": "is-referenced-by-count",
         "date": "published",
         "date_asc": "published",  # With order=asc
+    },
+    "dblp": {
+        # DBLP doesn't support server-side sorting
+        "relevance": None,
+        "citations": "_client_sort",  # DBLP doesn't have citation data
+        "date": "_client_sort",
+        "date_asc": "_client_sort",
+    },
+    "doaj": {
+        "relevance": None,  # Default
+        "citations": "_client_sort",  # DOAJ doesn't have citation data
+        "date": "created_date",
+        "date_asc": "created_date",  # With direction param
     },
     "elsevier": {
         "relevance": None,  # Default
@@ -201,6 +239,7 @@ class BaseClient(ABC):
         self.config = config or get_config()
         self._client: httpx.AsyncClient | None = None
         self._rate_limiter: RateLimiter | None = None
+        self._retry_handler: RetryHandler | None = None
 
     @property
     def client(self) -> httpx.AsyncClient:
@@ -223,6 +262,22 @@ class BaseClient(ABC):
             rate_limit = getattr(self.config.rate_limits, self.name, 10)
             self._rate_limiter = RateLimiter(rate_limit)
         return self._rate_limiter
+
+    @property
+    def retry_handler(self) -> RetryHandler:
+        """Get or create the retry handler."""
+        if self._retry_handler is None:
+            retry_settings = self.config.retry
+            self._retry_handler = RetryHandler(
+                RetryConfig(
+                    max_retries=retry_settings.max_retries,
+                    base_delay=retry_settings.base_delay,
+                    max_delay=retry_settings.max_delay,
+                    exponential_base=retry_settings.exponential_base,
+                    jitter=retry_settings.jitter,
+                )
+            )
+        return self._retry_handler
 
     async def close(self) -> None:
         """Close the HTTP client."""
@@ -277,7 +332,7 @@ class BaseClient(ABC):
         url: str,
         **kwargs: object,
     ) -> httpx.Response:
-        """Make a rate-limited HTTP request.
+        """Make a rate-limited HTTP request with retry logic.
 
         Args:
             method: HTTP method (GET, POST, etc.).
@@ -286,11 +341,18 @@ class BaseClient(ABC):
 
         Returns:
             HTTP response.
+
+        Raises:
+            httpx.HTTPStatusError: If the request fails after all retries.
         """
-        await self.rate_limiter.acquire()
-        response = await self.client.request(method, url, **kwargs)
-        response.raise_for_status()
-        return response
+
+        async def do_request() -> httpx.Response:
+            await self.rate_limiter.acquire()
+            response = await self.client.request(method, url, **kwargs)
+            response.raise_for_status()
+            return response
+
+        return await self.retry_handler.execute(do_request)
 
     async def _get(self, url: str, **kwargs: object) -> httpx.Response:
         """Make a rate-limited GET request."""
