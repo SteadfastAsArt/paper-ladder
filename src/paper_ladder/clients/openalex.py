@@ -265,6 +265,138 @@ class OpenAlexClient(BaseClient):
         return papers
 
     # =========================================================================
+    # Related Works & Concepts (Recommendation-like features)
+    # =========================================================================
+
+    async def get_related_works(
+        self,
+        paper_id: str,
+        limit: int = 10,
+    ) -> list[Paper]:
+        """Get related papers using OpenAlex's related_works feature.
+
+        OpenAlex computes related works based on co-citation and bibliographic
+        coupling (papers that cite similar works or are cited together).
+
+        Args:
+            paper_id: OpenAlex work ID, DOI, or other identifier.
+            limit: Maximum number of related works to return.
+
+        Returns:
+            List of related Paper objects.
+        """
+        # First get the paper to find related_works IDs
+        paper = await self.get_paper(paper_id)
+        if not paper or not paper.raw_data:
+            return []
+
+        related_ids = paper.raw_data.get("related_works", [])
+        if not related_ids:
+            return []
+
+        # Fetch the related works (limit to requested amount)
+        related_ids = related_ids[:limit]
+
+        # Use filter to batch fetch related works
+        filter_str = "|".join(related_ids)
+        params: dict[str, Any] = {
+            "filter": f"openalex_id:{filter_str}",
+            "per_page": min(len(related_ids), 200),
+        }
+
+        response = await self._get("/works", params=params)
+        data = response.json()
+
+        papers = []
+        for result in data.get("results", []):
+            p = self._parse_work(result)
+            if p:
+                papers.append(p)
+
+        return papers
+
+    async def get_paper_concepts(
+        self,
+        paper_id: str,
+        min_score: float = 0.3,
+    ) -> list[dict[str, Any]]:
+        """Get concepts/topics for a paper.
+
+        OpenAlex assigns concept tags to papers based on their content,
+        using a hierarchical taxonomy of ~65,000 concepts.
+
+        Args:
+            paper_id: OpenAlex work ID, DOI, or other identifier.
+            min_score: Minimum confidence score (0-1) for concepts.
+
+        Returns:
+            List of concept dicts with keys: id, name, score, level.
+        """
+        paper = await self.get_paper(paper_id)
+        if not paper or not paper.raw_data:
+            return []
+
+        concepts = paper.raw_data.get("concepts", [])
+
+        # Filter by score and format
+        result = []
+        for c in concepts:
+            score = c.get("score", 0)
+            if score >= min_score:
+                result.append({
+                    "id": c.get("id"),
+                    "name": c.get("display_name"),
+                    "score": score,
+                    "level": c.get("level"),  # 0=broad, 5=specific
+                })
+
+        return sorted(result, key=lambda x: x["score"], reverse=True)
+
+    async def search_by_concept(
+        self,
+        concept_id: str,
+        query: str | None = None,
+        limit: int = 10,
+        offset: int = 0,
+        **kwargs: object,
+    ) -> list[Paper]:
+        """Search papers by concept/topic.
+
+        Args:
+            concept_id: OpenAlex concept ID (e.g., "C41008148" for ML).
+            query: Optional additional search query.
+            limit: Maximum number of results.
+            offset: Number of results to skip.
+            **kwargs: Additional filters (year, open_access, etc.).
+
+        Returns:
+            List of Paper objects matching the concept.
+        """
+        params: dict[str, Any] = {
+            "per_page": min(limit, 200),
+            "page": (offset // max(limit, 1)) + 1,
+        }
+
+        if query:
+            params["search"] = query
+
+        # Build filters including concept
+        filters = [f"concepts.id:{concept_id}"]
+        filters.extend(self._build_filters(kwargs))
+        params["filter"] = ",".join(filters)
+
+        response = await self._get("/works", params=params)
+        data = response.json()
+
+        papers = []
+        for result in data.get("results", []):
+            paper = self._parse_work(result)
+            if paper:
+                papers.append(paper)
+
+        return papers
+
+    # =========================================================================
     # Authors
     # =========================================================================
 
