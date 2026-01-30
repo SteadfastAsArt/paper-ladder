@@ -418,35 +418,81 @@ class Aggregator:
         # Merge papers
         return self._merge_papers(papers)
 
-    def _deduplicate_papers(self, papers: list[Paper]) -> list[Paper]:
+    def _deduplicate_papers(
+        self, papers: list[Paper], merge_duplicates: bool = True
+    ) -> list[Paper]:
         """Remove duplicate papers based on DOI or title.
+
+        This method uses batch pre-computation for efficiency and optionally
+        merges duplicate papers using SmartMerger instead of discarding them.
 
         Args:
             papers: List of papers to deduplicate.
+            merge_duplicates: If True, merge duplicate papers using SmartMerger.
+                            If False, keep only the first occurrence.
 
         Returns:
             Deduplicated list of papers.
         """
-        seen_dois: set[str] = set()
-        seen_titles: set[str] = set()
+        if not papers:
+            return []
+
+        # Step 1: Pre-compute all normalized DOIs and titles in batch
+        normalized_data: list[tuple[str | None, str]] = [
+            (normalize_doi(p.doi) if p.doi else None, normalize_title(p.title))
+            for p in papers
+        ]
+
+        # Step 2: Group papers by DOI or title for potential merging
+        # Using DOI as primary key, title as fallback
+        doi_groups: dict[str, list[int]] = {}  # doi -> list of paper indices
+        title_groups: dict[str, list[int]] = {}  # title -> list of paper indices
+
+        for idx, (doi, title) in enumerate(normalized_data):
+            if doi:
+                if doi not in doi_groups:
+                    doi_groups[doi] = []
+                doi_groups[doi].append(idx)
+            else:
+                # Only use title grouping if no DOI
+                if title not in title_groups:
+                    title_groups[title] = []
+                title_groups[title].append(idx)
+
+        # Step 3: Process groups - merge or keep first
         unique_papers: list[Paper] = []
+        processed_indices: set[int] = set()
 
-        for paper in papers:
-            # Check DOI
-            if paper.doi:
-                doi = normalize_doi(paper.doi)
-                if doi and doi in seen_dois:
-                    continue
-                if doi:
-                    seen_dois.add(doi)
-
-            # Check title
-            title = normalize_title(paper.title)
-            if title in seen_titles:
+        # Process DOI groups first (more reliable identifier)
+        for doi, indices in doi_groups.items():
+            if indices[0] in processed_indices:
                 continue
-            seen_titles.add(title)
 
-            unique_papers.append(paper)
+            if merge_duplicates and len(indices) > 1:
+                # Merge all papers with the same DOI
+                group_papers = [papers[i] for i in indices]
+                merged = self.merger.merge_papers(group_papers)
+                unique_papers.append(merged)
+            else:
+                unique_papers.append(papers[indices[0]])
+
+            processed_indices.update(indices)
+
+        # Process title-only groups (papers without DOI)
+        for title, indices in title_groups.items():
+            # Filter out already processed indices
+            remaining = [i for i in indices if i not in processed_indices]
+            if not remaining:
+                continue
+
+            if merge_duplicates and len(remaining) > 1:
+                group_papers = [papers[i] for i in remaining]
+                merged = self.merger.merge_papers(group_papers)
+                unique_papers.append(merged)
+            else:
+                unique_papers.append(papers[remaining[0]])
+
+            processed_indices.update(remaining)
 
         return unique_papers
 
