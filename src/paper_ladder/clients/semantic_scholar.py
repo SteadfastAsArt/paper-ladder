@@ -9,18 +9,25 @@ API Documentation: https://api.semanticscholar.org/api-docs/
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from paper_ladder.clients.base import BaseClient, sort_papers
 from paper_ladder.models import Author, Paper, SortBy
 from paper_ladder.utils import clean_html_text, normalize_doi
 
+logger = logging.getLogger(__name__)
+
 
 class SemanticScholarClient(BaseClient):
     """Client for the Semantic Scholar API.
 
     Semantic Scholar is a free AI-powered research tool by Allen AI.
-    Rate limit: 100 requests/5 minutes unauthenticated, 1 req/sec with API key.
+
+    Rate limits:
+    - Unauthenticated: 1000 req/s shared among all users (易被限流)
+    - With API key: 1 req/s for /paper/search, /paper/batch, /recommendations
+                    10 req/s for other endpoints
 
     API docs: https://api.semanticscholar.org/
     """
@@ -82,7 +89,14 @@ class SemanticScholarClient(BaseClient):
         """
         # API limit: offset + limit ≤ 1,000 (updated Oct 2024)
         effective_limit = min(limit, 100)
-        effective_offset = min(offset, 1000 - effective_limit)
+        max_offset = 1000 - effective_limit
+        effective_offset = min(offset, max_offset)
+
+        if offset > max_offset:
+            logger.warning(
+                f"[semantic_scholar] Requested offset {offset} exceeds API limit "
+                f"(offset + limit ≤ 1000). Using offset={effective_offset}"
+            )
 
         params: dict[str, Any] = {
             "query": query,

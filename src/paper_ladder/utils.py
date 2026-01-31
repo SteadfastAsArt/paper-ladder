@@ -112,15 +112,19 @@ def is_pdf_url(url: str | None) -> bool:
 class RateLimiter:
     """Simple rate limiter for API requests."""
 
-    def __init__(self, requests_per_second: float):
+    def __init__(self, requests_per_second: float, name: str = ""):
         """Initialize rate limiter.
 
         Args:
             requests_per_second: Maximum requests per second.
+            name: Name for logging (e.g., client name).
         """
         self.min_interval = 1.0 / requests_per_second
+        self.requests_per_second = requests_per_second
         self.last_request_time = 0.0
+        self.name = name
         self._lock = asyncio.Lock()
+        self._logger = logging.getLogger(__name__)
 
     async def acquire(self) -> None:
         """Wait until a request can be made."""
@@ -128,7 +132,12 @@ class RateLimiter:
             now = time.monotonic()
             elapsed = now - self.last_request_time
             if elapsed < self.min_interval:
-                await asyncio.sleep(self.min_interval - elapsed)
+                wait_time = self.min_interval - elapsed
+                if wait_time > 0.1:  # Only log if waiting more than 100ms
+                    self._logger.debug(
+                        f"[{self.name}] Rate limit: waiting {wait_time:.2f}s"
+                    )
+                await asyncio.sleep(wait_time)
             self.last_request_time = time.monotonic()
 
 

@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from typing import Any
 
 from paper_ladder.clients import CLIENTS, BaseClient
 from paper_ladder.config import Config, get_config
 from paper_ladder.models import Paper, SearchResult
 from paper_ladder.utils import normalize_doi, normalize_title
+
+logger = logging.getLogger(__name__)
 
 # ============================================================================
 # Smart Merger
@@ -286,6 +289,7 @@ class Aggregator:
             SearchResult with combined papers.
         """
         sources = sources or self.sources
+        logger.info(f"[SEARCH] query={query!r} sources={sources} limit={limit}")
 
         # Create search tasks for each source
         tasks = []
@@ -293,7 +297,8 @@ class Aggregator:
             try:
                 client = self._get_client(source)
                 tasks.append(self._search_source(client, query, limit, **kwargs))
-            except ValueError:
+            except ValueError as e:
+                logger.warning(f"[SEARCH] Skipping unknown source: {source}")
                 continue
 
         # Run searches concurrently
@@ -307,8 +312,10 @@ class Aggregator:
             if isinstance(result, Exception):
                 errors[source] = str(result)
                 source_papers.append([])  # Empty list for failed source
+                logger.warning(f"[SEARCH] {source} failed: {result}")
             elif isinstance(result, list):
                 source_papers.append(result)
+                logger.debug(f"[SEARCH] {source} returned {len(result)} papers")
             else:
                 source_papers.append([])
 
@@ -322,9 +329,18 @@ class Aggregator:
                 if i < len(papers):
                     all_papers.append(papers[i])
 
+        total_before_dedup = len(all_papers)
+
         # Deduplicate if requested
         if deduplicate:
             all_papers = self._deduplicate_papers(all_papers)
+            logger.debug(
+                f"[SEARCH] Deduplicated: {total_before_dedup} -> {len(all_papers)} papers"
+            )
+
+        logger.info(
+            f"[SEARCH] Complete: {len(all_papers)} papers from {len(sources) - len(errors)}/{len(sources)} sources"
+        )
 
         return SearchResult(
             query=query,
@@ -352,7 +368,13 @@ class Aggregator:
         Returns:
             List of papers from this source.
         """
-        return await client.search(query, limit=limit, **kwargs)
+        import time
+
+        start = time.monotonic()
+        papers = await client.search(query, limit=limit, **kwargs)
+        elapsed = time.monotonic() - start
+        logger.info(f"[{client.name}] Found {len(papers)} papers in {elapsed:.2f}s")
+        return papers
 
     async def get_paper(
         self,

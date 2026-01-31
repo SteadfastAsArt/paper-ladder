@@ -260,7 +260,7 @@ class BaseClient(ABC):
         """Get or create the rate limiter."""
         if self._rate_limiter is None:
             rate_limit = getattr(self.config.rate_limits, self.name, 10)
-            self._rate_limiter = RateLimiter(rate_limit)
+            self._rate_limiter = RateLimiter(rate_limit, name=self.name)
         return self._rate_limiter
 
     @property
@@ -345,12 +345,30 @@ class BaseClient(ABC):
         Raises:
             httpx.HTTPStatusError: If the request fails after all retries.
         """
+        import time
+
+        # Extract query params for logging
+        params = kwargs.get("params", {})
+        query_preview = ""
+        if isinstance(params, dict) and "query" in params:
+            query_preview = f" query={params['query']!r}"
+        elif isinstance(params, dict) and "q" in params:
+            query_preview = f" q={params['q']!r}"
 
         async def do_request() -> httpx.Response:
             await self.rate_limiter.acquire()
+            start_time = time.monotonic()
+            logger.debug(f"[{self.name}] {method} {url}{query_preview}")
             response = await self.client.request(method, url, **kwargs)
+            elapsed = time.monotonic() - start_time
+            logger.debug(
+                f"[{self.name}] {method} {url} -> {response.status_code} ({elapsed:.2f}s)"
+            )
             response.raise_for_status()
             return response
+
+        # Set meaningful function name for better error messages
+        do_request.__name__ = f"{self.__class__.__name__}:{method}:{url[:80]}"
 
         return await self.retry_handler.execute(do_request)
 

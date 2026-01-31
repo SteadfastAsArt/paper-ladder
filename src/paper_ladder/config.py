@@ -34,7 +34,7 @@ class RateLimits(BaseModel):
     """Rate limits per source (requests per second)."""
 
     openalex: float = 10
-    semantic_scholar: float = 10
+    semantic_scholar: float = 1  # Search/batch/recommendations: 1 req/s (even with API key)
     elsevier: float = 5
     google_scholar: float = 1
     crossref: float = 50  # Polite pool allows higher rates

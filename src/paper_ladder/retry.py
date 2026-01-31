@@ -164,8 +164,14 @@ async def retry_async(
 
             # Check if we've exhausted retries
             if attempt >= config.max_retries:
+                error_detail = str(e)
+                url_info = ""
+                if isinstance(e, httpx.HTTPStatusError):
+                    error_detail = f"HTTP {e.response.status_code}"
+                    url_info = f" {e.request.url}"
                 logger.warning(
-                    f"All {config.max_retries} retries exhausted for {func.__name__}"
+                    f"[RETRY FAILED] {func.__name__}: {error_detail}{url_info} "
+                    f"(exhausted {config.max_retries} retries)"
                 )
                 raise
 
@@ -177,15 +183,18 @@ async def retry_async(
             if retry_after is not None:
                 delay = max(delay, retry_after)
                 delay = min(delay, config.max_delay)  # Still cap at max_delay
+                logger.debug(f"[RETRY] Server requested Retry-After: {retry_after}s")
 
             # Log the retry
             error_info = str(e)
+            url_info = ""
             if isinstance(e, httpx.HTTPStatusError):
                 error_info = f"HTTP {e.response.status_code}"
+                url_info = f" ({e.request.url.path})"
 
             logger.info(
-                f"Retry {attempt + 1}/{config.max_retries} for {func.__name__} "
-                f"after {error_info}, waiting {delay:.2f}s"
+                f"[RETRY {attempt + 1}/{config.max_retries}] {func.__name__}{url_info}: "
+                f"{error_info}, waiting {delay:.2f}s"
             )
 
             await asyncio.sleep(delay)
